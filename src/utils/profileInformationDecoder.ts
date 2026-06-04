@@ -15,6 +15,8 @@ export const profileIDtoFolderDecoder = (profileId: string) => {
 	); // all folder ids end in this suffix
 };
 
+console.log(profileIDtoFolderDecoder("a286a655-37ff-40bf-9301-6f1cf99c7e73"));
+
 /**
  * Read manifest.json from a .sdProfile provided as a Blob/File/ArrayBuffer in the browser.
  * Returns parsed JSON or throws on failure.
@@ -206,4 +208,110 @@ export async function extractImageUrlsFromBlob(input: Blob | ArrayBuffer) {
     }
 
     return urls;
+}
+
+/**
+ * Create a normalized representation: root manifest, pagesIndex (uuid -> folderName),
+ * and manifestsByFolder (folderName -> manifest object). Useful as a canonical flat store.
+ */
+export async function normalizeProfileFromBlob(input: Blob | ArrayBuffer) {
+    let buffer: ArrayBuffer;
+    if (input instanceof Blob) buffer = await input.arrayBuffer(); else buffer = input;
+    const uint8 = new Uint8Array(buffer);
+    const entries = unzipSync(uint8);
+
+    // find base folder if present
+    const topLevelFolders = Object.keys(entries).filter(p => p.endsWith('/') && p.split('/').length === 2);
+    const baseFolder = topLevelFolders.length > 0 ? topLevelFolders[0] : '';
+
+    const readManifestAt = (path: string) => {
+        const e = entries[path];
+        if (!e) return null;
+        const text = new TextDecoder().decode(e);
+        try { return JSON.parse(text); } catch { return null; }
+    };
+
+    const rootManifest = readManifestAt(baseFolder ? `${baseFolder}manifest.json` : 'manifest.json');
+    if (!rootManifest) throw new Error('Root manifest not found');
+
+    // collect all manifest.json entries and map to folder name
+    const folders: Record<string, any> = {};
+    for (const p of Object.keys(entries)) {
+        if (!p.toLowerCase().endsWith('/manifest.json') && !p.toLowerCase().endsWith('manifest.json')) continue;
+        // try to extract folder name from path
+        // patterns: "<base>/<folder>/manifest.json" or "Profiles/<folder>/manifest.json" or "<folder>/manifest.json"
+        const parts = p.split('/').filter(Boolean);
+        let folderName = '';
+        if (parts.length >= 2 && parts[parts.length - 1].toLowerCase() === 'manifest.json') {
+            folderName = parts[parts.length - 2];
+        }
+        if (folderName) {
+            // exclude the specific demo file name from folders as requested
+            if (folderName === '11C1D084-BDF0-4498-8E0B-E95071470DEB.sdProfile') continue;
+            const m = readManifestAt(p);
+            if (m) {
+                // ensure action Settings.ProfileUUID entries also carry a ProfileID
+                try {
+                    const cloned = JSON.parse(JSON.stringify(m));
+                    const controllers = cloned?.Controllers;
+                    if (Array.isArray(controllers)) {
+                        for (const ctrl of controllers) {
+                            const actions = ctrl?.Actions;
+                            if (actions && typeof actions === 'object') {
+                                for (const key of Object.keys(actions)) {
+                                    const action = actions[key];
+                                    const profileUuid = action?.Settings?.ProfileUUID;
+                                    if (profileUuid && typeof profileUuid === 'string') {
+                                        try {
+                                            action.Settings.ProfileID = profileIDtoFolderDecoder(profileUuid);
+                                        } catch (e) {
+                                            // ignore decode errors
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    folders[folderName] = cloned;
+                } catch {
+                    folders[folderName] = m;
+                }
+            }
+        }
+    }
+    // add ProfileID into root manifest if it has a Settings.ProfileUUID
+    try {
+        if (rootManifest?.Settings && typeof rootManifest.Settings.ProfileUUID === 'string') {
+            rootManifest.Settings.ProfileID = profileIDtoFolderDecoder(rootManifest.Settings.ProfileUUID);
+        }
+    } catch {
+        // ignore
+    }
+
+    // transform Pages.Pages entries into objects { UUID, ID }
+    try {
+        const pagesArr = rootManifest?.Pages?.Pages;
+        if (Array.isArray(pagesArr)) {
+            const mapped = pagesArr.map((uuid: any) => {
+                const out: any = { UUID: uuid };
+                if (typeof uuid === 'string') {
+                    try {
+                        out.ID = profileIDtoFolderDecoder(uuid);
+                    } catch {
+                        // ignore decode failures
+                    }
+                }
+                return out;
+            });
+            if (!rootManifest.Pages) rootManifest.Pages = {};
+            rootManifest.Pages.Pages = mapped;
+        }
+    } catch {
+        // ignore
+    }
+
+    return {
+        rootManifest,
+        folders,
+    };
 }

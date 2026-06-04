@@ -21,7 +21,7 @@ const App = () => {
 
                     {/* SIDEBAR */}
                     <div>
-
+                        
                     </div>
                 </div>
 
