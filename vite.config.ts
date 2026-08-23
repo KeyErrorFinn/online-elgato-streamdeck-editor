@@ -22,4 +22,5 @@ export default defineConfig({
 		}),
 		tailwindcss(),
 	],
+    base: '/online-elgato-streamdeck-editor/',
 });
