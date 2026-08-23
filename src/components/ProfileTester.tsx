@@ -1,152 +1,1292 @@
-import { useState } from 'react'
-import { readProfileManifestFromBlob, decodeFirstPageIdFromBlob, buildLinkedProfileGraphFromBlob, extractImageUrlsFromBlob } from '../utils/profileInformationDecoder';
+﻿import { useEffect, useState } from "react";
+import {
+    buildLinkedProfileGraphFromBlob,
+    decodeFirstPageIdFromBlob,
+    extractImageUrlsFromBlob,
+    readProfileManifestFromBlob,
+} from "../utils/profileInformationDecoder";
+import {
+    readInstalledPlugins,
+    type ImportedPlugin,
+    type ImportedPluginAction,
+} from "../utils/pluginDirectoryDecoder";
+import { downloadEditedAction } from "../utils/actionArchive";
+import PluginPropertyInspector from "./PluginPropertyInspector";
+import PluginLivePreview from "./PluginLivePreview";
+import {
+    loadSavedWorkspace,
+    saveWorkspace,
+} from "../utils/workspacePersistence";
+import PluginLibrary from "./PluginLibrary";
+import {
+    devices,
+    getGridBounds,
+    getKeypadActions,
+    getKeypadController,
+    gridLabel,
+    imageUrlFor,
+    parentFolderActionId,
+    type GridSize,
+} from "../utils/editorModel";
+
+declare const __PUBLIC_STREAMDECK_ACTION__: string | null;
 
 export default function ProfileTester() {
     const [manifest, setManifest] = useState<object | null>(null);
+    const [graph, setGraph] = useState<any | null>(null);
+    const [images, setImages] = useState<Record<string, string> | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [activePage, setActivePage] = useState<any | null>(null);
+    const [history, setHistory] = useState<any[]>([]);
+    const [preview, setPreview] = useState("classic");
+    const [customSize, setCustomSize] = useState<GridSize>({
+        rows: 3,
+        columns: 5,
+    });
+    const [selectedKey, setSelectedKey] = useState<string | null>(null);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [buttonClipboard, setButtonClipboard] = useState<any | null>(null);
+    const [contextMenu, setContextMenu] = useState<{
+        key: string;
+        x: number;
+        y: number;
+    } | null>(null);
+    const [appearancePopoverOpen, setAppearancePopoverOpen] = useState(false);
+    const [showData, setShowData] = useState(false);
+    const [archiveData, setArchiveData] = useState<ArrayBuffer | null>(null);
+    const [editedPages, setEditedPages] = useState<Record<string, any>>({});
+    const [draggedKey, setDraggedKey] = useState<string | null>(null);
+    const [plugins, setPlugins] = useState<ImportedPlugin[]>([]);
+    const [pluginSearch, setPluginSearch] = useState("");
+    const [pluginsLoading, setPluginsLoading] = useState(false);
+    const [draggedPluginAction, setDraggedPluginAction] =
+        useState<ImportedPluginAction | null>(null);
+    const [addedAssets, setAddedAssets] = useState<
+        Record<string, Record<string, Uint8Array>>
+    >({});
+    const [workspaceReady, setWorkspaceReady] = useState(false);
+    const [restoreStatus, setRestoreStatus] = useState("Restoring saved workspace…");
+    const [pluginPreviewImages, setPluginPreviewImages] = useState<
+        Record<string, string>
+    >({});
+    const actionFileName = __PUBLIC_STREAMDECK_ACTION__?.replace(
+        /\.streamdeckaction$/i,
+        "",
+    );
 
-    const demoFileName = 'Main Profile.streamDeckProfile';
-    const [decodedId, setDecodedId] = useState<string | null>(null);
-    const [graph, setGraph] = useState<any | null>(null);
-    const [imageUrls, setImageUrls] = useState<Record<string,string> | null>(null);
+    const pages = graph?.Pages?.Pages || {};
+    const rootId = [
+        graph?.Pages?.Current,
+        graph?.Pages?.Default,
+        ...Object.keys(pages),
+    ].find((id) => typeof id === "string" && pages[id]);
+    const rootPage = rootId ? pages[rootId] : undefined;
+    const loadedPage = activePage ?? rootPage;
+    const currentPage =
+        loadedPage?.$uuid && editedPages[loadedPage.$uuid]
+            ? editedPages[loadedPage.$uuid]
+            : loadedPage;
+    const actions = getKeypadActions(currentPage);
+    const imported = getGridBounds(actions);
+    const autoDevice = devices.find(
+        (device) =>
+            device.rows >= imported.rows && device.columns >= imported.columns,
+    );
+    const requestedDevice = devices.find((device) => device.id === preview);
+    const selectedDevice: GridSize =
+        preview === "custom"
+            ? customSize
+            : (requestedDevice ?? autoDevice ?? imported);
+    const visual = {
+        rows: Math.max(selectedDevice.rows, imported.rows),
+        columns: Math.max(selectedDevice.columns, imported.columns),
+    };
+    const selectedAction = selectedKey ? actions[selectedKey] : undefined;
+    const actionKeys = Object.keys(actions);
+    const isActionLandingPage =
+        currentPage?.$uuid === rootPage?.$uuid && actionKeys.length === 1;
+    const displayedKeys = isActionLandingPage
+        ? actionKeys
+        : Array.from({ length: visual.rows * visual.columns }, (_, index) => {
+              const column = index % visual.columns;
+              const row = Math.floor(index / visual.columns);
+              return `${column},${row}`;
+          });
+    const normalizedPluginSearch = pluginSearch.trim().toLowerCase();
+    const visiblePlugins = plugins
+        .map((plugin) => ({
+            ...plugin,
+            actions: plugin.actions.filter(
+                (action) =>
+                    action.visibleInActionsList &&
+                    (!normalizedPluginSearch ||
+                        `${plugin.name} ${action.name} ${action.uuid}`
+                            .toLowerCase()
+                            .includes(normalizedPluginSearch)),
+            ),
+        }))
+        .filter((plugin) => plugin.actions.length > 0);
+    const pluginActionFor = (action: any) =>
+        action?.UUID || action?.Plugin?.UUID
+            ? plugins.flatMap((plugin) => plugin.actions).find(
+                  (candidate) =>
+                      String(candidate.uuid).toLowerCase() ===
+                          String(action.UUID).toLowerCase() ||
+                      (String(candidate.pluginUuid).toLowerCase() ===
+                          String(action.Plugin?.UUID).toLowerCase() &&
+                          candidate.name.trim().toLowerCase() ===
+                              String(action.Name || "").trim().toLowerCase()),
+              )
+            : undefined;
+    const selectedPluginAction = pluginActionFor(selectedAction);
+    const selectedActionState =
+        selectedAction?.States?.[selectedAction?.State ?? 0] ??
+        selectedAction?.States?.[0];
+    const selectedPreviewImage =
+        (selectedAction?.ActionID
+            ? pluginPreviewImages[selectedAction.ActionID]
+            : undefined) ||
+        imageUrlFor(selectedActionState?.Image, images) ||
+        selectedPluginAction?.states[selectedAction?.State ?? 0]?.imageUrl ||
+        selectedPluginAction?.states[0]?.imageUrl ||
+        selectedPluginAction?.iconUrl;
+    const selectedIsParent =
+        selectedAction?.UUID === parentFolderActionId ||
+        selectedAction?.Plugin?.UUID === parentFolderActionId;
+    const selectedIsFolder =
+        !!selectedAction?.Settings?.ProfileUUID &&
+        typeof selectedAction.Settings.ProfileUUID === "object";
+    const selectedPluginNotImported =
+        !selectedIsParent &&
+        !selectedIsFolder &&
+        !!selectedAction?.Plugin?.UUID &&
+        !selectedPluginAction;
+    const selectedPluginSettingsUnsupported =
+        !selectedIsParent &&
+        !selectedIsFolder &&
+        !!selectedPluginAction &&
+        !selectedPluginAction.propertyInspector;
+    const selectedPluginPartiallySupported =
+        !selectedIsParent &&
+        !selectedIsFolder &&
+        !!selectedPluginAction?.propertyInspector &&
+        (/sdpi-wrapper[^>]*\bhidden\b/i.test(
+            selectedPluginAction.propertyInspector.html,
+        ) || /\bdata-target=/i.test(selectedPluginAction.propertyInspector.html));
+    const selectedPreviewTitle =
+        selectedActionState?.ShowTitle !== false || selectedIsParent
+            ? selectedActionState?.Title ||
+              (selectedIsParent ? selectedAction?.Name : "")
+            : "";
+    const selectedPreviewFontStyle = String(
+        selectedActionState?.FontStyle || "",
+    ).toLowerCase();
+    const selectedPreviewTitleStyle = {
+        fontFamily: selectedActionState?.FontFamily || "Arial, sans-serif",
+        fontSize: `${selectedActionState?.FontSize || 12}px`,
+        fontStyle: selectedPreviewFontStyle.includes("italic")
+            ? "italic"
+            : undefined,
+        fontWeight: selectedPreviewFontStyle
+            ? selectedPreviewFontStyle.includes("bold")
+                ? 700
+                : 400
+            : 700,
+        textDecoration: selectedActionState?.FontUnderline
+            ? "underline"
+            : undefined,
+        color: selectedActionState?.TitleColor || "#ffffff",
+        WebkitTextStroke: selectedActionState?.OutlineThickness
+            ? `${Math.min(Number(selectedActionState.OutlineThickness), 2)}px #000000`
+            : undefined,
+        paintOrder: "stroke fill",
+    };
 
-    // revoke previous blob urls when component unmounts or new urls set
-    const revokeUrls = (map: Record<string,string> | null) => {
-        if (!map) return;
-        for (const v of Object.values(map)) URL.revokeObjectURL(v);
-    }
+    const updateCustomSize = (field: keyof GridSize, value: string) => {
+        const number = Number(value);
+        if (Number.isInteger(number) && number >= 1 && number <= 12)
+            setCustomSize((size) => ({ ...size, [field]: number }));
+    };
+    const revokeUrls = (urls: Record<string, string> | null) =>
+        new Set(Object.values(urls || {})).forEach((url) =>
+            URL.revokeObjectURL(url),
+        );
 
-    async function loadDemo() {
+    useEffect(() => {
+        let cancelled = false;
+
+        async function restoreWorkspace() {
+            try {
+                const saved = await loadSavedWorkspace();
+                if (!saved || cancelled) return;
+                setRestoreStatus("Restoring your action…");
+                const [nextManifest, nextGraph, nextImages] = await Promise.all([
+                    readProfileManifestFromBlob(saved.archive),
+                    buildLinkedProfileGraphFromBlob(saved.archive),
+                    extractImageUrlsFromBlob(saved.archive),
+                ]);
+                if (cancelled) return;
+                const savedPages = nextGraph?.Pages?.Pages || {};
+                setManifest(nextManifest);
+                setGraph(nextGraph);
+                setArchiveData(saved.archive);
+                setImages(nextImages);
+                setEditedPages(saved.editedPages || {});
+                setAddedAssets(saved.addedAssets || {});
+                setActivePage(saved.activePageId ? savedPages[saved.activePageId] : null);
+                setHistory(
+                    (saved.historyIds || [])
+                        .map((pageId) => savedPages[pageId])
+                        .filter(Boolean),
+                );
+                setSelectedKey(saved.selectedKey || null);
+                setPreview(saved.preview || "classic");
+                setCustomSize(saved.customSize || { rows: 3, columns: 5 });
+            } catch {
+                // A stale or oversized browser cache should never block the editor.
+            } finally {
+                if (!cancelled) {
+                    setRestoreStatus("");
+                    setWorkspaceReady(true);
+                }
+            }
+        }
+
+        void restoreWorkspace();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!workspaceReady || !archiveData) return;
+        const timer = window.setTimeout(() => {
+            void saveWorkspace({
+                archive: archiveData,
+                editedPages,
+                addedAssets,
+                activePageId: currentPage?.$uuid,
+                historyIds: history.map((page) => page?.$uuid).filter(Boolean),
+                selectedKey,
+                preview,
+                customSize,
+            }).catch(() => {
+                // Browser storage may be unavailable or full; editing still works.
+            });
+        }, 300);
+        return () => window.clearTimeout(timer);
+    }, [
+        activePage,
+        addedAssets,
+        archiveData,
+        currentPage?.$uuid,
+        customSize,
+        editedPages,
+        history,
+        preview,
+        selectedKey,
+        workspaceReady,
+    ]);
+
+    async function loadAction() {
         setError(null);
         setLoading(true);
+        try {
+            if (!__PUBLIC_STREAMDECK_ACTION__)
+                throw new Error("No .streamDeckAction file found in public/.");
+            const response = await fetch(
+                `${import.meta.env.BASE_URL}${encodeURIComponent(__PUBLIC_STREAMDECK_ACTION__)}`,
+            );
+            if (!response.ok)
+                throw new Error(`Could not load action (${response.status}).`);
+            const archive = await response.arrayBuffer();
+            const [nextManifest, nextGraph, nextImages] = await Promise.all([
+                readProfileManifestFromBlob(archive),
+                buildLinkedProfileGraphFromBlob(archive),
+                extractImageUrlsFromBlob(archive),
+            ]);
+            setManifest(nextManifest);
+            setGraph(nextGraph);
+            setActivePage(null);
+            setHistory([]);
+            setSelectedKey(null);
+            setEditedPages({});
+            setAddedAssets({});
+            setPluginPreviewImages({});
+            setArchiveData(archive);
+            revokeUrls(images);
+            setImages(nextImages);
             try {
-            const res = await fetch('/' + demoFileName);
-            if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
-            const ab = await res.arrayBuffer();
-                const m = await readProfileManifestFromBlob(ab);
-                setManifest(m);
-                try {
-                    const decoded = await decodeFirstPageIdFromBlob(ab);
-                    setDecodedId(decoded);
-                } catch (e: any) {
-                    setDecodedId(null);
-                    // ignore decode errors here; they will show in manifest if needed
-                }
-
-                try {
-                    const g = await buildLinkedProfileGraphFromBlob(ab);
-                    setGraph(g);
-                } catch (e:any) {
-                    setGraph(null);
-                }
-
-                try {
-                    const imgs = await extractImageUrlsFromBlob(ab);
-                    revokeUrls(imageUrls);
-                    setImageUrls(imgs);
-                } catch (e:any) {
-                    revokeUrls(imageUrls);
-                    setImageUrls(null);
-                }
-        } catch (err: any) {
-            setError(err.message || String(err));
+                await decodeFirstPageIdFromBlob(archive);
+            } catch {
+                /* The graph remains usable without this diagnostic. */
+            }
+        } catch (loadError: any) {
+            setError(loadError.message || String(loadError));
             setManifest(null);
-                setDecodedId(null);
+            setGraph(null);
         } finally {
             setLoading(false);
         }
     }
 
+    const loadPluginDirectory = async (files: FileList | null) => {
+        if (!files?.length) return;
+        setPluginsLoading(true);
+        setError(null);
+        try {
+            const selectedFiles = Array.from(files);
+            setPlugins(await readInstalledPlugins(selectedFiles));
+            setPluginPreviewImages({});
+        } catch (pluginError: any) {
+            setError(
+                pluginError.message || "Could not read the selected plugins folder.",
+            );
+        } finally {
+            setPluginsLoading(false);
+        }
+    };
+
+
+    const goBack = () => {
+        if (!history.length) return;
+        setActivePage(history.at(-1) ?? null);
+        setHistory((items) => items.slice(0, -1));
+        setSelectedKey(null);
+    };
+    const openAction = (action: any) => {
+        const isParent =
+            action?.UUID === parentFolderActionId ||
+            action?.Plugin?.UUID === parentFolderActionId;
+        if (isParent) return goBack();
+        const page = action?.Settings?.ProfileUUID;
+        const child =
+            page && typeof page === "object" ? Object.values(page)[0] : null;
+        if (child && typeof child === "object") {
+            setHistory((items) => [...items, currentPage]);
+            setActivePage(child);
+            setSelectedKey(null);
+        }
+    };
+
+    const moveAction = (from: string, to: string) => {
+        if (!currentPage || from === to) return;
+        const nextPage = structuredClone(currentPage);
+        const keypad = getKeypadController(nextPage);
+        if (!keypad) return;
+        const nextActions = { ...(keypad.Actions || {}) };
+        [nextActions[from], nextActions[to]] = [nextActions[to], nextActions[from]];
+        if (!nextActions[from]) delete nextActions[from];
+        if (!nextActions[to]) delete nextActions[to];
+        keypad.Actions = nextActions;
+        setEditedPages((pages) => ({ ...pages, [nextPage.$uuid]: nextPage }));
+        setActivePage(nextPage);
+        setSelectedKey(to);
+    };
+
+    const updateSelectedAction = (update: (action: any) => void) => {
+        if (!currentPage || !selectedKey) return;
+        const nextPage = structuredClone(currentPage);
+        const keypad = getKeypadController(nextPage);
+        const action = keypad?.Actions?.[selectedKey];
+        if (!action) return;
+        update(action);
+        setEditedPages((pages) => ({ ...pages, [nextPage.$uuid]: nextPage }));
+        setActivePage(nextPage);
+    };
+
+    const updateSelectedState = (update: (state: any) => void) => {
+        updateSelectedAction((action) => {
+            const stateIndex = action.State ?? 0;
+            if (!Array.isArray(action.States)) action.States = [];
+            if (!action.States[stateIndex]) action.States[stateIndex] = {};
+            update(action.States[stateIndex]);
+        });
+    };
+
+    const deleteSelectedAction = () => {
+        if (!currentPage || !selectedKey) return;
+        const nextPage = structuredClone(currentPage);
+        const keypad = getKeypadController(nextPage);
+        if (!keypad?.Actions?.[selectedKey]) return;
+        delete keypad.Actions[selectedKey];
+        setEditedPages((pages) => ({ ...pages, [nextPage.$uuid]: nextPage }));
+        setActivePage(nextPage);
+        setSelectedKey(null);
+        setAppearancePopoverOpen(false);
+        setDeleteDialogOpen(false);
+        setContextMenu(null);
+    };
+
+    const copyAction = (action: any) => {
+        if (!action) return;
+        setButtonClipboard(structuredClone(action));
+        setContextMenu(null);
+    };
+
+    const pasteAction = (targetKey: string) => {
+        if (!currentPage || !buttonClipboard || actions[targetKey]) return;
+        const nextPage = structuredClone(currentPage);
+        const keypad = getKeypadController(nextPage);
+        if (!keypad) return;
+        if (!keypad.Actions) keypad.Actions = {};
+        const pasted = structuredClone(buttonClipboard);
+        if (pasted.ActionID) pasted.ActionID = crypto.randomUUID();
+        keypad.Actions[targetKey] = pasted;
+        setEditedPages((pages) => ({ ...pages, [nextPage.$uuid]: nextPage }));
+        setActivePage(nextPage);
+        setSelectedKey(targetKey);
+        setContextMenu(null);
+    };
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            const target = event.target as HTMLElement | null;
+            if (
+                target?.isContentEditable ||
+                ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName || "")
+            )
+                return;
+            if (event.key === "Escape") {
+                setDeleteDialogOpen(false);
+                setContextMenu(null);
+                return;
+            }
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c" && selectedAction) {
+                event.preventDefault();
+                copyAction(selectedAction);
+                return;
+            }
+            if (
+                (event.ctrlKey || event.metaKey) &&
+                event.key.toLowerCase() === "v" &&
+                selectedKey &&
+                !actions[selectedKey]
+            ) {
+                event.preventDefault();
+                pasteAction(selectedKey);
+                return;
+            }
+            if (event.key === "Delete" && selectedKey && selectedAction) {
+                event.preventDefault();
+                setDeleteDialogOpen(true);
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [actions, buttonClipboard, selectedAction, selectedKey]);
+
+    useEffect(() => {
+        const closeContextMenu = () => setContextMenu(null);
+        window.addEventListener("pointerdown", closeContextMenu);
+        return () => window.removeEventListener("pointerdown", closeContextMenu);
+    }, []);
+
+    const addPluginAction = async (
+        pluginAction: ImportedPluginAction,
+        targetKey: string,
+    ) => {
+        if (!currentPage?.$uuid) return;
+        const nextPage = structuredClone(currentPage);
+        const keypad = getKeypadController(nextPage);
+        if (!keypad) return;
+        if (!keypad.Actions) keypad.Actions = {};
+
+        const pageAssets: Record<string, Uint8Array> = {};
+        const nextImageUrls: Record<string, string> = {};
+        const sourceStates = pluginAction.states.length
+            ? pluginAction.states
+            : [{ definition: {}, imageFile: pluginAction.iconFile }];
+        const states = await Promise.all(
+            sourceStates.map(async ({ definition, imageFile }) => {
+                let imagePath: string | undefined;
+                if (imageFile) {
+                    const extension =
+                        imageFile.name.match(/\.[a-z0-9]+$/i)?.[0] || ".png";
+                    const filename = `imported-${crypto.randomUUID()}${extension}`;
+                    imagePath = `Images/${filename}`;
+                    pageAssets[filename] = new Uint8Array(await imageFile.arrayBuffer());
+                    const url = URL.createObjectURL(imageFile);
+                    nextImageUrls[imagePath] = url;
+                    nextImageUrls[filename] = url;
+                }
+                return {
+                    FontFamily: definition.FontFamily || "Arial",
+                    FontSize: definition.FontSize ?? 12,
+                    FontStyle: definition.FontStyle || "Bold",
+                    FontUnderline: definition.FontUnderline ?? false,
+                    Image: imagePath,
+                    OutlineThickness: definition.OutlineThickness ?? 2,
+                    ShowTitle: definition.ShowTitle ?? true,
+                    Title: definition.Title || "",
+                    TitleAlignment: definition.TitleAlignment || "bottom",
+                    TitleColor: definition.TitleColor || "#ffffff",
+                };
+            }),
+        );
+
+        keypad.Actions[targetKey] = {
+            ActionID: crypto.randomUUID(),
+            LinkedTitle: true,
+            Name: pluginAction.name,
+            Plugin: {
+                Name: pluginAction.pluginName,
+                UUID: pluginAction.pluginUuid,
+                Version: pluginAction.pluginVersion,
+            },
+            Resources: null,
+            Settings: {},
+            State: 0,
+            States: states,
+            UUID: pluginAction.uuid,
+        };
+        setEditedPages((pages) => ({ ...pages, [nextPage.$uuid]: nextPage }));
+        setAddedAssets((assets) => ({
+            ...assets,
+            [nextPage.$uuid]: { ...(assets[nextPage.$uuid] || {}), ...pageAssets },
+        }));
+        setImages((urls) => ({ ...(urls || {}), ...nextImageUrls }));
+        setActivePage(nextPage);
+        setSelectedKey(targetKey);
+    };
+
+    const downloadAction = () => {
+        if (!archiveData) return;
+        downloadEditedAction(
+            archiveData,
+            editedPages,
+            addedAssets,
+            __PUBLIC_STREAMDECK_ACTION__,
+        );
+    };
+
+    const selectedPluginLabel =
+        selectedPluginAction?.pluginName || selectedAction?.Plugin?.Name || "Stream Deck";
+    const selectedActionLabel =
+        selectedAction?.Name || selectedPluginAction?.name || "Action";
+
     return (
-        <div className="p-4">
-            <div className="mb-2">
-                <button className="px-3 py-1 bg-indigo-600 rounded" onClick={loadDemo} disabled={loading}>
-                    {loading ? 'Loading…' : 'Load demo profile from public/'}
-                </button>
-            </div>
-            {error && <div className="text-red-400">Error: {error}</div>}
-            {manifest && (
-                <pre className="max-h-64 overflow-auto bg-[#111] p-3 rounded text-sm">
-                    {JSON.stringify(manifest, null, 2)}
-                </pre>
-            )}
-            {decodedId && (
-                <div className="mt-2">Decoded first Page ID: <code className="bg-[#111] px-2 py-1 rounded">{decodedId}</code></div>
-            )}
-            {graph && (
-                <div className="mt-4">
-                    <h3 className="font-bold">Linked profile graph</h3>
-                    <pre className="max-h-96 overflow-auto bg-[#111] p-3 rounded text-sm">{JSON.stringify(graph, null, 2)}</pre>
+        <main className="editor-shell">
+            <section className="editor-toolbar">
+                <div>
+                    <p className="eyebrow">Online profile workspace</p>
+                    <h1>
+                        {actionFileName ||
+                            currentPage?.Name ||
+                            (manifest as any)?.Name ||
+                            "Stream Deck editor"}
+                    </h1>
+                    <p className="subtle">
+                        Create layouts bigger than any physical Stream Deck.
+                    </p>
+                </div>
+                <div className="toolbar-actions">
+                    {manifest && (
+                        <button className="secondary-button" onClick={downloadAction}>
+                            Download edited action
+                        </button>
+                    )}
+                    <button
+                        className="primary-button"
+                        onClick={loadAction}
+                        disabled={loading}
+                    >
+                        {loading
+                            ? "Opening archive\u2026"
+                            : manifest
+                                ? "Reload action"
+                                : "Open action from public"}
+                    </button>
+                </div>
+            </section>
+            {error && <div className="error-banner">{error}</div>}
+            {deleteDialogOpen && selectedAction && (
+                <div className="delete-dialog-backdrop" role="presentation">
+                    <section
+                        className="delete-dialog"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="delete-dialog-title"
+                    >
+                        <h2 id="delete-dialog-title">Delete button?</h2>
+                        <p>
+                            Are you sure you want to delete this <strong>{selectedPluginLabel}</strong>
+                            {": "}
+                            <strong>{selectedActionLabel}</strong> button?
+                        </p>
+                        <div className="delete-dialog-actions">
+                            <button
+                                className="secondary-button"
+                                type="button"
+                                onClick={() => setDeleteDialogOpen(false)}
+                            >
+                                Keep
+                            </button>
+                            <button
+                                className="delete-button"
+                                type="button"
+                                onClick={deleteSelectedAction}
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </section>
                 </div>
             )}
-            {/* 5x3 grid based on top-most list of actions for the first decoded page */}
-            {graph && decodedId && (
-                <div className="mt-6">
-                    <h3 className="font-bold mb-2">5x3 Action Grid (positions are "x,y")</h3>
-                    <div className="grid grid-cols-5 gap-2">
-                        {Array.from({ length: 3 }).map((_, row) => (
-                            <div key={`row-${row}`} className="contents">
-                                {Array.from({ length: 5 }).map((__, col) => {
-                                    const key = `${col},${row}`;
-                                    // find the manifest by the encoded UUID key stored in graph.Pages.Pages
-                                    const pagesObj = graph?.Pages?.Pages || {};
-                                    // try to find current page UUID from the root Pages.Current if present,
-                                    // otherwise use the first key in the Pages mapping
-                                    const encodedKey = graph?.Pages?.Current || Object.keys(pagesObj)[0];
-                                    const pageManifest = pagesObj[encodedKey];
-                                    const controllers = pageManifest?.Controllers;
-                                    let action = undefined;
-                                    if (Array.isArray(controllers) && controllers.length > 0) {
-                                        const actionsObj = controllers[0]?.Actions;
-                                        if (actionsObj && typeof actionsObj === 'object') action = actionsObj[key];
-                                    }
-                                    
-                                    
-                                    const imgPath = action?.States?.[0]?.Image;
-                                    // prefer blob URL if image path points inside the zip
-                                    const findBlobUrl = (p: string | undefined) => {
-                                        if (!p || !imageUrls) return undefined;
-                                        // exact match
-                                        if (imageUrls[p]) return imageUrls[p];
-                                        // basename match
-                                        const parts = p.split('/');
-                                        const base = parts[parts.length - 1];
-                                        if (base && imageUrls[base]) return imageUrls[base];
-                                        // endsWith match
-                                        for (const k of Object.keys(imageUrls)) {
-                                            if (k.endsWith(p)) return imageUrls[k];
-                                        }
-                                        // contains match
-                                        for (const k of Object.keys(imageUrls)) {
-                                            if (k.includes(p)) return imageUrls[k];
-                                        }
-                                        return undefined;
-                                    };
-
-                                    const blobUrl = findBlobUrl(imgPath);
-                                    const isImgUrl = !!blobUrl || (typeof imgPath === 'string' && (imgPath.startsWith('http') || imgPath.startsWith('/') || imgPath.startsWith('data:')));
-
-                                    return (
-                                        <div key={key} className="w-24 h-16 bg-[#1a1a1a] rounded border border-gray-700 flex flex-col items-center justify-center text-xs">
-                                            <div className="w-full h-10 flex items-center justify-center">
-                                                {isImgUrl ? (
-                                                    // eslint-disable-next-line @next/next/no-img-element
-                                                    <img src={blobUrl ?? imgPath} alt={key} className="max-h-10 max-w-full object-contain" />
-                                                ) : (
-                                                    <div className="px-1 text-[10px] text-gray-300">{imgPath ?? '—'}</div>
-                                                )}
-                                            </div>
-                                            <div className="w-full text-center text-[10px] text-gray-400 py-1">{key}</div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ))}
+            {contextMenu && (
+                <div
+                    className="button-context-menu"
+                    role="menu"
+                    style={{ left: contextMenu.x, top: contextMenu.y }}
+                >
+                    <button
+                        type="button"
+                        role="menuitem"
+                        disabled={!actions[contextMenu.key]}
+                        onClick={() => copyAction(actions[contextMenu.key])}
+                    >
+                        Copy
+                    </button>
+                    <button
+                        type="button"
+                        role="menuitem"
+                        disabled={!buttonClipboard || !!actions[contextMenu.key]}
+                        onClick={() => pasteAction(contextMenu.key)}
+                    >
+                        Paste
+                    </button>
+                    <hr />
+                    <button
+                        className="context-delete"
+                        type="button"
+                        role="menuitem"
+                        disabled={!actions[contextMenu.key]}
+                        onClick={() => {
+                            setSelectedKey(contextMenu.key);
+                            setDeleteDialogOpen(true);
+                            setContextMenu(null);
+                        }}
+                    >
+                        Delete
+                    </button>
+                </div>
+            )}
+            {!workspaceReady && (
+                <section className="workspace-restore-state" aria-live="polite">
+                    <span className="restore-spinner" aria-hidden="true" />
+                    <div>
+                        <h2>{restoreStatus || "Preparing editor…"}</h2>
+                        <p>Your saved action, edits, and installed plugins stay in this browser.</p>
                     </div>
-                </div>
+                </section>
             )}
-            {!manifest && !error && <div className="text-sm text-gray-400">No manifest loaded.</div>}
-        </div>
+            <div className="editor-layout">
+                <aside className="control-panel">
+                    <section className="panel-section">
+                        <div className="panel-heading">
+                            <span>01</span>
+                            <h2>Visual device</h2>
+                        </div>
+                        <p>
+                            Keys outside this device stay visible but are darkened to show
+                            they would be clipped on hardware.
+                        </p>
+                        <label className="device-select-label">
+                            Preview device
+                            <select
+                                value={preview}
+                                onChange={(event) => setPreview(event.target.value)}
+                            >
+                                <option value="auto">
+                                    Auto-fit imported grid
+                                    {autoDevice ? ` (${autoDevice.label})` : ""}
+                                </option>
+                                {devices.map((device) => (
+                                    <option key={device.id} value={device.id}>
+                                        {device.label} ({gridLabel(device)})
+                                    </option>
+                                ))}
+                                <option value="custom">Custom size</option>
+                            </select>
+                        </label>
+                        <div className="custom-device">
+                            <strong>Custom visual size</strong>
+                            <div className="dimension-inputs">
+                                <label>
+                                    Rows
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="12"
+                                        value={customSize.rows}
+                                        onChange={(event) =>
+                                            updateCustomSize("rows", event.target.value)
+                                        }
+                                    />
+                                </label>
+                                <b>{"\u00d7"}</b>
+                                <label>
+                                    Columns
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="12"
+                                        value={customSize.columns}
+                                        onChange={(event) =>
+                                            updateCustomSize("columns", event.target.value)
+                                        }
+                                    />
+                                </label>
+                            </div>
+                            <button
+                                className="secondary-button custom-size-button"
+                                onClick={() => setPreview("custom")}
+                            >
+                                Use {gridLabel(customSize)} canvas
+                            </button>
+                        </div>
+                    </section>
+                    <PluginLibrary
+                        plugins={plugins}
+                        visiblePlugins={visiblePlugins}
+                        search={pluginSearch}
+                        loading={pluginsLoading}
+                        onSearchChange={setPluginSearch}
+                        onLoadFolder={loadPluginDirectory}
+                        onDragAction={(action) => {
+                            setDraggedPluginAction(action);
+                            setDraggedKey(null);
+                        }}
+                        onError={setError}
+                    />
+                </aside>
+                <section className="canvas-panel">
+                    <div className="canvas-topline">
+                        <div>
+                            <p className="eyebrow">Live canvas</p>
+                            <h2>{currentPage?.Name || "Root page"}</h2>
+                        </div>
+                        <div className="canvas-badges">
+                            <span>{gridLabel(selectedDevice)} selected device</span>
+                            <span>{gridLabel(imported)} imported page</span>
+                        </div>
+                    </div>
+                    {!manifest && (
+                        <div className="empty-state">
+                            <div className="empty-icon">SD</div>
+                            <h2>Open a Stream Deck action to begin</h2>
+                            <p>
+                                Your action stays in the browser while linked folders and button
+                                artwork are unpacked.
+                            </p>
+                            <button
+                                className="primary-button"
+                                onClick={loadAction}
+                                disabled={loading}
+                            >
+                                Open action from public
+                            </button>
+                        </div>
+                    )}
+                    {manifest && (
+                        <div
+                            className={`deck-frame ${isActionLandingPage ? "action-landing-frame" : ""}`}
+                        >
+                            <div className="deck-header">
+                                <span>Stream Deck preview</span>
+                                <span>
+                                    {requestedDevice?.shortLabel ||
+                                        (preview === "custom" ? "Custom canvas" : "Auto-fit")}
+                                </span>
+                            </div>
+                            <div className="deck-content">
+                                <div
+                                    className="deck-grid"
+                                    style={{
+                                        gridTemplateColumns: `repeat(${isActionLandingPage ? 1 : visual.columns}, clamp(54px, 7.7vw, 95px))`,
+                                    }}
+                                >
+                                    {displayedKeys.map((key) => {
+                                            const [column, row] = key.split(",").map(Number);
+                                            const clipped =
+                                                row >= selectedDevice.rows ||
+                                                column >= selectedDevice.columns;
+                                            const action = actions[key];
+                                            const actionState =
+                                                action?.States?.[action?.State ?? 0] ??
+                                                action?.States?.[0];
+                                            const pluginAction = pluginActionFor(action);
+                                            const image =
+                                                (action?.ActionID
+                                                    ? pluginPreviewImages[action.ActionID]
+                                                    : undefined) ||
+                                                imageUrlFor(actionState?.Image, images) ||
+                                                pluginAction?.states[
+                                                    action?.State ?? 0
+                                                ]?.imageUrl ||
+                                                pluginAction?.states[0]?.imageUrl ||
+                                                pluginAction?.iconUrl;
+                                            const profile = action?.Settings?.ProfileUUID;
+                                            const folder = !!profile && typeof profile === "object";
+                                            const parent =
+                                                action?.UUID === parentFolderActionId ||
+                                                action?.Plugin?.UUID === parentFolderActionId;
+                                            const navigable =
+                                                folder || (parent && history.length > 0);
+                                            const title =
+                                                actionState?.ShowTitle !== false || parent
+                                                    ? actionState?.Title ||
+                                                      (parent ? action?.Name : "")
+                                                    : "";
+                                            const fontStyle = String(
+                                                actionState?.FontStyle || "",
+                                            ).toLowerCase();
+                                            const titleStyle = {
+                                                fontFamily:
+                                                    actionState?.FontFamily || "Arial, sans-serif",
+                                                fontSize: `${actionState?.FontSize || 12}px`,
+                                                fontStyle: fontStyle.includes("italic")
+                                                    ? "italic"
+                                                    : undefined,
+                                                fontWeight: fontStyle
+                                                    ? fontStyle.includes("bold")
+                                                        ? 700
+                                                        : 400
+                                                    : 700,
+                                                textDecoration: actionState?.FontUnderline
+                                                    ? "underline"
+                                                    : undefined,
+                                                color: actionState?.TitleColor || "#ffffff",
+                                                WebkitTextStroke: actionState?.OutlineThickness
+                                                    ? `${Math.min(Number(actionState.OutlineThickness), 2)}px #000000`
+                                                    : undefined,
+                                                paintOrder: "stroke fill",
+                                            };
+                                            return (
+                                                <button
+                                                    key={key}
+                                                    draggable={!!action}
+                                                    className={`deck-key ${selectedKey === key ? "selected" : ""} ${navigable ? "navigable" : ""} ${clipped ? "clipped-key" : ""} ${draggedPluginAction ? "plugin-drop-target" : ""}`}
+                                                    onDragStart={() => {
+                                                        setDraggedKey(key);
+                                                        setDraggedPluginAction(null);
+                                                    }}
+                                                    onDragOver={(event) => event.preventDefault()}
+                                                    onDrop={() => {
+                                                        if (draggedPluginAction)
+                                                            void addPluginAction(draggedPluginAction, key);
+                                                        else if (draggedKey) moveAction(draggedKey, key);
+                                                        setDraggedPluginAction(null);
+                                                        setDraggedKey(null);
+                                                    }}
+                                                    onDragEnd={() => setDraggedKey(null)}
+                                                    onClick={() => {
+                                                        setSelectedKey(key);
+                                                        setAppearancePopoverOpen(false);
+                                                    }}
+                                                    onContextMenu={(event) => {
+                                                        event.preventDefault();
+                                                        setSelectedKey(key);
+                                                        setAppearancePopoverOpen(false);
+                                                        setContextMenu({
+                                                            key,
+                                                            x: Math.min(event.clientX, window.innerWidth - 172),
+                                                            y: Math.min(event.clientY, window.innerHeight - 142),
+                                                        });
+                                                    }}
+                                                    onDoubleClick={() => {
+                                                        if (navigable) openAction(action);
+                                                    }}
+                                                    title={
+                                                        parent
+                                                            ? "Double-click to go to the parent folder"
+                                                            : folder
+                                                                ? "Double-click to open folder"
+                                                                : action?.Name || `Key ${key}`
+                                                    }
+                                                >
+                                                    {image && <img src={image} alt="" />}
+                                                    {title && (
+                                                        <span
+                                                            className={`key-title title-${String(actionState?.TitleAlignment || "bottom").toLowerCase()}`}
+                                                            style={titleStyle}
+                                                        >
+                                                            {title}
+                                                        </span>
+                                                    )}
+                                                    {action && !image && !title && (
+                                                        <span className="key-title title-middle">
+                                                            {action.Name || action.Plugin?.Name || "Action"}
+                                                        </span>
+                                                    )}
+                                                    {folder && <span className="folder-mark">{"\u2197"}</span>}
+                                                    {parent && <span className="folder-mark">{"\u2196"}</span>}
+                                                </button>
+                                            );
+                                    })}
+                                </div>
+                                <div className="plugin-live-previews" aria-hidden="true">
+                                    {Object.entries(actions).map(([key, action]: [string, any]) => {
+                                        const pluginAction = pluginActionFor(action);
+                                        if (!action?.ActionID || !pluginAction?.renderer) return null;
+                                        return (
+                                            <PluginLivePreview
+                                                key={`${key}:${JSON.stringify(action.Settings || {})}`}
+                                                renderer={pluginAction.renderer}
+                                                settings={action.Settings || {}}
+                                                onImage={(image) =>
+                                                    setPluginPreviewImages((current) =>
+                                                        current[action.ActionID] === image
+                                                            ? current
+                                                            : { ...current, [action.ActionID]: image },
+                                                    )
+                                                }
+                                            />
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                                {selectedAction && (
+                                    <aside className="selected-key-panel">
+                                        <header className="selected-key-header">
+                                            <div>
+                                                <h3>
+                                                    <strong>
+                                                        {selectedAction.Plugin?.Name || "Stream Deck"}
+                                                    </strong>
+                                                    {": "}
+                                                    {selectedAction.Name || "Unnamed action"}
+                                                </h3>
+                                            </div>
+                                        </header>
+                                        <div className="selected-key-body">
+                                            <div className="selected-key-icon selected-key-preview">
+                                                {selectedPreviewImage && (
+                                                    <img src={selectedPreviewImage} alt="" />
+                                                )}
+                                                {selectedPreviewTitle && (
+                                                    <span
+                                                        className={`key-title title-${String(selectedActionState?.TitleAlignment || "bottom").toLowerCase()}`}
+                                                        style={selectedPreviewTitleStyle}
+                                                    >
+                                                        {selectedPreviewTitle}
+                                                    </span>
+                                                )}
+                                                {!selectedPreviewImage &&
+                                                    !selectedPreviewTitle && (
+                                                        <span className="key-title title-middle">
+                                                            {selectedAction.Name ||
+                                                                selectedAction.Plugin?.Name ||
+                                                                "Action"}
+                                                        </span>
+                                                    )}
+                                            </div>
+                                            <div className="button-editor-grid">
+                                            <section className="button-appearance title-editor">
+                                                <label className="button-editor-field title-field">
+                                                    <span>Title:</span>
+                                                    <span className="title-input-control">
+                                                        <input
+                                                            value={
+                                                                selectedAction.States?.[
+                                                                    selectedAction.State ?? 0
+                                                                ]?.Title || ""
+                                                            }
+                                                            onChange={(event) =>
+                                                                updateSelectedState((state) => {
+                                                                    state.Title = event.target.value;
+                                                                })
+                                                            }
+                                                        />
+                                                        <button
+                                                            className="title-format-toggle"
+                                                            type="button"
+                                                            aria-expanded={appearancePopoverOpen}
+                                                            aria-label="Edit title formatting"
+                                                            onClick={() =>
+                                                                setAppearancePopoverOpen((open) => !open)
+                                                            }
+                                                        >
+                                                            T {"\u25be"}
+                                                        </button>
+                                                    </span>
+                                                </label>
+                                                {appearancePopoverOpen && (
+                                                    <div className="title-format-popover">
+                                                        <div className="format-row format-options-row">
+                                                    <label className="button-editor-checkbox">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={
+                                                                selectedAction.States?.[
+                                                                    selectedAction.State ?? 0
+                                                                ]?.ShowTitle !== false
+                                                            }
+                                                            onChange={(event) =>
+                                                                updateSelectedState((state) => {
+                                                                    state.ShowTitle = event.target.checked;
+                                                                })
+                                                            }
+                                                        />
+                                                        Show title
+                                                    </label>
+                                                        {[
+                                                            ["bottom", "T\u2193", "Align bottom"],
+                                                            ["middle", "T\u2195", "Align vertical middle"],
+                                                            ["top", "T\u2191", "Align top"],
+                                                        ].map(([alignment, icon, label]) => (
+                                                            <button
+                                                                key={alignment}
+                                                                type="button"
+                                                                className={`format-icon-button ${String(selectedAction.States?.[selectedAction.State ?? 0]?.TitleAlignment || "bottom") === alignment ? "active" : ""}`}
+                                                                title={label}
+                                                                onClick={() =>
+                                                                    updateSelectedState((state) => {
+                                                                        state.TitleAlignment = alignment;
+                                                                    })
+                                                                }
+                                                            >
+                                                                {icon}
+                                                            </button>
+                                                        ))}
+                                                        <button
+                                                            className="format-reset-button"
+                                                            type="button"
+                                                            onClick={() =>
+                                                                updateSelectedState((state) => {
+                                                                    Object.assign(state, {
+                                                                        FontFamily: "",
+                                                                        FontSize: 12,
+                                                                        FontStyle: "Bold",
+                                                                        FontUnderline: false,
+                                                                        ShowTitle: true,
+                                                                        TitleAlignment: "bottom",
+                                                                        TitleColor: "#ffffff",
+                                                                    });
+                                                                })
+                                                            }
+                                                        >
+                                                            Reset
+                                                        </button>
+                                                        </div>
+                                                        <label className="format-select-field">
+                                                            <select
+                                                                value={
+                                                                    selectedAction.States?.[
+                                                                        selectedAction.State ?? 0
+                                                                    ]?.FontFamily || "Default"
+                                                                }
+                                                                onChange={(event) =>
+                                                                    updateSelectedState((state) => {
+                                                                        state.FontFamily =
+                                                                            event.target.value === "Default"
+                                                                                ? ""
+                                                                                : event.target.value;
+                                                                        if (event.target.value === "Default") {
+                                                                            state.FontStyle = "Bold";
+                                                                        }
+                                                                    })
+                                                                }
+                                                            >
+                                                                <option value="Default">Default — Arial (Bold)</option>
+                                                                <option>Arial</option>
+                                                                <option>Comic Sans MS</option>
+                                                                <option>Courier</option>
+                                                                <option>Courier New</option>
+                                                                <option>Georgia</option>
+                                                                <option>Impact</option>
+                                                                <option>Microsoft Sans Serif</option>
+                                                                <option>Symbol</option>
+                                                                <option>Tahoma</option>
+                                                                <option>Times New Roman</option>
+                                                                <option>Trebuchet MS</option>
+                                                                <option>Verdana</option>
+                                                                <option>Webdings</option>
+                                                                <option>Wingdings</option>
+                                                            </select>
+                                                        </label>
+                                                        <div className="format-row format-style-row">
+                                                            <label className="format-size-field">
+                                                                <span>Font size</span>
+                                                                <input
+                                                                    type="number"
+                                                                    min="1"
+                                                                    max="72"
+                                                                    value={
+                                                                        selectedAction.States?.[
+                                                                            selectedAction.State ?? 0
+                                                                        ]?.FontSize ?? 12
+                                                                    }
+                                                                    onChange={(event) =>
+                                                                        updateSelectedState((state) => {
+                                                                            state.FontSize = Math.max(
+                                                                                1,
+                                                                                Number(event.target.value) || 12,
+                                                                            );
+                                                                        })
+                                                                    }
+                                                                />
+                                                            </label>
+                                                            <button
+                                                                className={`format-icon-button bold-button ${String(selectedAction.States?.[selectedAction.State ?? 0]?.FontStyle || "Bold").toLowerCase().includes("bold") ? "active" : ""}`}
+                                                                type="button"
+                                                                title="Bold"
+                                                                disabled={!selectedAction.States?.[selectedAction.State ?? 0]?.FontFamily}
+                                                                onClick={() =>
+                                                                    updateSelectedState((state) => {
+                                                                        const styles = String(
+                                                                            state.FontStyle || "Bold",
+                                                                        );
+                                                                        state.FontStyle = /bold/i.test(styles)
+                                                                            ? (styles
+                                                                                  .replace(/bold/gi, "")
+                                                                                  .trim() || "Regular")
+                                                                            : `${styles} Bold`.trim();
+                                                                    })
+                                                                }
+                                                            >
+                                                                B
+                                                            </button>
+                                                            <button
+                                                                className={`format-icon-button underline-button ${selectedAction.States?.[selectedAction.State ?? 0]?.FontUnderline ? "active" : ""}`}
+                                                                type="button"
+                                                                title="Underline"
+                                                                onClick={() =>
+                                                                    updateSelectedState((state) => {
+                                                                        state.FontUnderline = !state.FontUnderline;
+                                                                    })
+                                                                }
+                                                            >
+                                                                U
+                                                            </button>
+                                                            <label className="format-colour-field" title="Text colour">
+                                                                <input
+                                                                    type="color"
+                                                                    value={
+                                                                        selectedAction.States?.[
+                                                                            selectedAction.State ?? 0
+                                                                        ]?.TitleColor || "#ffffff"
+                                                                    }
+                                                                    onChange={(event) =>
+                                                                        updateSelectedState((state) => {
+                                                                            state.TitleColor = event.target.value;
+                                                                        })
+                                                                    }
+                                                                />
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </section>
+                                            {selectedPluginAction?.propertyInspector && (
+                                                <section className="plugin-settings plugin-settings-from-plugin">
+                                                    <h4>Plugin settings</h4>
+                                                    <PluginPropertyInspector
+                                                        key={selectedKey}
+                                                        inspector={selectedPluginAction.propertyInspector}
+                                                        settings={selectedAction.Settings || {}}
+                                                        onSettingChange={(key, value, isPath) =>
+                                                            updateSelectedAction((action) => {
+                                                                action.Settings ||= {};
+                                                                if (!isPath) {
+                                                                    action.Settings[key] = value;
+                                                                    return;
+                                                                }
+                                                                const parts = key.split(".").filter(Boolean);
+                                                                const last = parts.pop();
+                                                                if (!last) return;
+                                                                const target = parts.reduce((current, part) => {
+                                                                    if (!current[part] || typeof current[part] !== "object") {
+                                                                        current[part] = {};
+                                                                    }
+                                                                    return current[part];
+                                                                }, action.Settings as Record<string, any>);
+                                                                target[last] = value;
+                                                            })
+                                                        }
+                                                    />
+                                                </section>
+                                            )}
+                                            {selectedPluginNotImported && (
+                                                <section className="plugin-settings plugin-settings-unsupported">
+                                                    <h4>Plugin not imported</h4>
+                                                    <p>
+                                                        Import this action&apos;s plugin folder to load its
+                                                        settings form, default artwork, and other plugin info.
+                                                    </p>
+                                                </section>
+                                            )}
+                                            {selectedPluginSettingsUnsupported && (
+                                                <section className="plugin-settings plugin-settings-unsupported">
+                                                    <h4>Plugin settings unavailable</h4>
+                                                    <p>
+                                                        This imported plugin does not expose a
+                                                        browser-compatible settings form for this action.
+                                                    </p>
+                                                </section>
+                                            )}
+                                            {selectedPluginPartiallySupported && (
+                                                <section className="plugin-settings plugin-settings-partial">
+                                                    <h4>Some plugin settings are unavailable</h4>
+                                                    <p>
+                                                        Basic settings work here, but this plugin also relies
+                                                        on Stream Deck&apos;s native runtime. External data,
+                                                        generated presets, and desktop-editor actions may not
+                                                        be available.
+                                                    </p>
+                                                </section>
+                                            )}
+                                        </div>
+                                        </div>
+                                        <details className="raw-action-details">
+                                            <summary>Raw action data</summary>
+                                            <pre>{JSON.stringify(selectedAction, null, 2)}</pre>
+                                        </details>
+                                    </aside>
+                                )}
+                        </div>
+                    )}
+                    {imported.rows > selectedDevice.rows ||
+                        imported.columns > selectedDevice.columns ? (
+                        <p className="canvas-note">
+                            Dark keys are outside the selected device and would be cut off by
+                            Stream Deck hardware. They remain editable here.
+                        </p>
+                    ) : (
+                        <p className="canvas-note">
+                            Drag one action onto another to swap their locations. Download the
+                            edited action when you are ready.
+                        </p>
+                    )}
+                </section>
+            </div>
+            {manifest && (
+                <section className="data-drawer">
+                    <button
+                        className="drawer-toggle"
+                        onClick={() => setShowData((show) => !show)}
+                    >
+                        {showData ? "Hide raw profile data" : "Show raw profile data"}
+                    </button>
+                    {showData && (
+                        <div className="data-columns">
+                            <article>
+                                <h3>Profile manifest</h3>
+                                <pre>{JSON.stringify(manifest, null, 2)}</pre>
+                            </article>
+                            <article>
+                                <h3>Current page</h3>
+                                <pre>{JSON.stringify(currentPage, null, 2)}</pre>
+                            </article>
+                            <article>
+                                <h3>Linked page graph</h3>
+                                <pre>{JSON.stringify(graph, null, 2)}</pre>
+                            </article>
+                        </div>
+                    )}
+                </section>
+            )}
+        </main>
     );
 }
