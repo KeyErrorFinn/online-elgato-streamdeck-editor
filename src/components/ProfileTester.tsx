@@ -5,6 +5,7 @@ import {
     extractImageUrlsFromBlob,
     readProfileManifestFromBlob,
 } from "../utils/profileInformationDecoder";
+import { useRef } from "react";
 import {
     readInstalledPlugins,
     type ImportedPlugin,
@@ -14,11 +15,17 @@ import { downloadEditedAction } from "../utils/actionArchive";
 import PluginPropertyInspector from "./PluginPropertyInspector";
 import PluginLivePreview from "./PluginLivePreview";
 import {
+    clearSavedWorkspace,
     loadSavedWorkspace,
     saveWorkspace,
 } from "../utils/workspacePersistence";
 import PluginLibrary from "./PluginLibrary";
 import { readBuiltInPlugins } from "../utils/builtInPlugins";
+import {
+    loadCachedPlugins,
+    loadPluginArchives,
+    savePluginArchives,
+} from "../utils/pluginPersistence";
 import {
     devices,
     getGridBounds,
@@ -29,6 +36,12 @@ import {
     parentFolderActionId,
     type GridSize,
 } from "../utils/editorModel";
+import {
+    EditorBootScreen,
+    EditorStartScreen,
+    EditorTopBar,
+    StartFreshDialog,
+} from "./EditorChrome";
 
 declare const __PUBLIC_STREAMDECK_ACTION__: string | null;
 
@@ -47,6 +60,7 @@ export default function ProfileTester() {
     });
     const [selectedKey, setSelectedKey] = useState<string | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [startFreshDialogOpen, setStartFreshDialogOpen] = useState(false);
     const [buttonClipboard, setButtonClipboard] = useState<any | null>(null);
     const [contextMenu, setContextMenu] = useState<{
         key: string;
@@ -61,6 +75,8 @@ export default function ProfileTester() {
     const [plugins, setPlugins] = useState<ImportedPlugin[]>([]);
     const [builtInPlugins, setBuiltInPlugins] = useState<ImportedPlugin[]>([]);
     const [builtInPluginsLoading, setBuiltInPluginsLoading] = useState(true);
+    const [savedPluginsLoading, setSavedPluginsLoading] = useState(true);
+    const [pluginsSaving, setPluginsSaving] = useState(false);
     const [pluginSearch, setPluginSearch] = useState("");
     const [pluginsLoading, setPluginsLoading] = useState(false);
     const [draggedPluginAction, setDraggedPluginAction] =
@@ -73,10 +89,9 @@ export default function ProfileTester() {
     const [pluginPreviewImages, setPluginPreviewImages] = useState<
         Record<string, string>
     >({});
-    const actionFileName = __PUBLIC_STREAMDECK_ACTION__?.replace(
-        /\.streamdeckaction$/i,
-        "",
-    );
+    const [projectFilename, setProjectFilename] = useState<string | null>(null);
+    const suppressWorkspaceSave = useRef(false);
+    const sampleProjectName = __PUBLIC_STREAMDECK_ACTION__ || null;
 
     const pages = graph?.Pages?.Pages || {};
     const rootId = [
@@ -90,6 +105,11 @@ export default function ProfileTester() {
         loadedPage?.$uuid && editedPages[loadedPage.$uuid]
             ? editedPages[loadedPage.$uuid]
             : loadedPage;
+    const projectName =
+        projectFilename?.replace(/\.streamdeck(?:action|profile)$/i, "") ||
+        currentPage?.Name ||
+        (manifest as any)?.Name ||
+        "Untitled Stream Deck project";
     const actions = getKeypadActions(currentPage);
     const imported = getGridBounds(actions);
     const autoDevice = devices.find(
@@ -254,6 +274,11 @@ export default function ProfileTester() {
                 setManifest(nextManifest);
                 setGraph(nextGraph);
                 setArchiveData(saved.archive);
+                setProjectFilename(
+                    saved.sourceFilename ||
+                        __PUBLIC_STREAMDECK_ACTION__ ||
+                        "restored.streamDeckAction",
+                );
                 setImages(nextImages);
                 setEditedPages(saved.editedPages || {});
                 setAddedAssets(saved.addedAssets || {});
@@ -283,6 +308,26 @@ export default function ProfileTester() {
     }, []);
 
     useEffect(() => {
+        // Restoring archives after the initial paint keeps the editor responsive.
+        const timer = window.setTimeout(() => {
+            void loadCachedPlugins()
+                .then(async (cachedPlugins) => {
+                    if (cachedPlugins?.length) {
+                        setPlugins(cachedPlugins);
+                        return;
+                    }
+                    const files = await loadPluginArchives();
+                    if (files.length) setPlugins(await readInstalledPlugins(files));
+                })
+                .catch(() => {
+                    // Corrupt or evicted browser storage should not block the editor.
+                })
+                .finally(() => setSavedPluginsLoading(false));
+        }, 0);
+        return () => window.clearTimeout(timer);
+    }, []);
+
+    useEffect(() => {
         // Yield once so React can paint the editor before the bundled library is
         // read. Built-ins are intentionally a background enhancement.
         const timer = window.setTimeout(() => {
@@ -299,10 +344,12 @@ export default function ProfileTester() {
     }, []);
 
     useEffect(() => {
-        if (!workspaceReady || !archiveData) return;
+        if (!workspaceReady || !archiveData || suppressWorkspaceSave.current) return;
         const timer = window.setTimeout(() => {
+            if (suppressWorkspaceSave.current) return;
             void saveWorkspace({
                 archive: archiveData,
+                sourceFilename: projectFilename || undefined,
                 editedPages,
                 addedAssets,
                 activePageId: currentPage?.$uuid,
@@ -324,9 +371,36 @@ export default function ProfileTester() {
         editedPages,
         history,
         preview,
+        projectFilename,
         selectedKey,
         workspaceReady,
     ]);
+
+    async function openArchive(archive: ArrayBuffer, filename: string) {
+        const [nextManifest, nextGraph, nextImages] = await Promise.all([
+            readProfileManifestFromBlob(archive),
+            buildLinkedProfileGraphFromBlob(archive),
+            extractImageUrlsFromBlob(archive),
+        ]);
+        suppressWorkspaceSave.current = false;
+        setManifest(nextManifest);
+        setGraph(nextGraph);
+        setActivePage(null);
+        setHistory([]);
+        setSelectedKey(null);
+        setEditedPages({});
+        setAddedAssets({});
+        setPluginPreviewImages({});
+        setArchiveData(archive);
+        setProjectFilename(filename);
+        revokeUrls(images);
+        setImages(nextImages);
+        try {
+            await decodeFirstPageIdFromBlob(archive);
+        } catch {
+            /* The graph remains usable without this diagnostic. */
+        }
+    }
 
     async function loadAction() {
         setError(null);
@@ -340,27 +414,7 @@ export default function ProfileTester() {
             if (!response.ok)
                 throw new Error(`Could not load action (${response.status}).`);
             const archive = await response.arrayBuffer();
-            const [nextManifest, nextGraph, nextImages] = await Promise.all([
-                readProfileManifestFromBlob(archive),
-                buildLinkedProfileGraphFromBlob(archive),
-                extractImageUrlsFromBlob(archive),
-            ]);
-            setManifest(nextManifest);
-            setGraph(nextGraph);
-            setActivePage(null);
-            setHistory([]);
-            setSelectedKey(null);
-            setEditedPages({});
-            setAddedAssets({});
-            setPluginPreviewImages({});
-            setArchiveData(archive);
-            revokeUrls(images);
-            setImages(nextImages);
-            try {
-                await decodeFirstPageIdFromBlob(archive);
-            } catch {
-                /* The graph remains usable without this diagnostic. */
-            }
+            await openArchive(archive, __PUBLIC_STREAMDECK_ACTION__);
         } catch (loadError: any) {
             setError(loadError.message || String(loadError));
             setManifest(null);
@@ -370,14 +424,81 @@ export default function ProfileTester() {
         }
     }
 
+    async function loadImportedArchive(files: FileList | null) {
+        const file = files?.[0];
+        if (!file) return;
+        setError(null);
+        setLoading(true);
+        try {
+            if (!/\.streamdeck(?:action|profile)$/i.test(file.name)) {
+                throw new Error(
+                    "Choose a .streamDeckAction or .streamDeckProfile file.",
+                );
+            }
+            await openArchive(await file.arrayBuffer(), file.name);
+        } catch (loadError: any) {
+            setError(
+                loadError.message ||
+                    "That archive could not be opened as a Stream Deck profile or action.",
+            );
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function startFresh() {
+        suppressWorkspaceSave.current = true;
+        setStartFreshDialogOpen(false);
+        setArchiveData(null);
+        setManifest(null);
+        setGraph(null);
+        setActivePage(null);
+        setHistory([]);
+        setSelectedKey(null);
+        setEditedPages({});
+        setAddedAssets({});
+        setPluginPreviewImages({});
+        setProjectFilename(null);
+        setShowData(false);
+        setError(null);
+        revokeUrls(images);
+        setImages(null);
+        try {
+            await clearSavedWorkspace();
+        } catch {
+            setError(
+                "The project was closed, but its saved browser copy could not be removed.",
+            );
+        }
+    }
+
     const loadPluginDirectory = async (files: FileList | null) => {
         if (!files?.length) return;
         setPluginsLoading(true);
         setError(null);
         try {
             const selectedFiles = Array.from(files);
-            setPlugins(await readInstalledPlugins(selectedFiles));
+            const decodedPlugins = await readInstalledPlugins(selectedFiles);
+            setPlugins(decodedPlugins);
             setPluginPreviewImages({});
+            setPluginsSaving(true);
+            try {
+                await savePluginArchives(decodedPlugins);
+                // Read the cache back immediately. The editor now uses the same
+                // objects a refresh will restore, so storage problems cannot stay
+                // hidden until the next page load.
+                const restoredPlugins = await loadCachedPlugins();
+                if (!restoredPlugins?.length) {
+                    throw new Error("The saved plugin cache could not be read back.");
+                }
+                setPlugins(restoredPlugins);
+            } catch {
+                setError(
+                    "Plugins were loaded, but the browser could not save and verify them for refresh.",
+                );
+            } finally {
+                setPluginsSaving(false);
+            }
         } catch (pluginError: any) {
             setError(
                 pluginError.message || "Could not read the selected plugins folder.",
@@ -489,6 +610,7 @@ export default function ProfileTester() {
                 return;
             if (event.key === "Escape") {
                 setDeleteDialogOpen(false);
+                setStartFreshDialogOpen(false);
                 setContextMenu(null);
                 return;
             }
@@ -597,7 +719,7 @@ export default function ProfileTester() {
             archiveData,
             editedPages,
             addedAssets,
-            __PUBLIC_STREAMDECK_ACTION__,
+            projectFilename,
         );
     };
 
@@ -608,41 +730,39 @@ export default function ProfileTester() {
     const selectedActionLabel =
         selectedAction?.Name || selectedPluginAction?.name || "Action";
 
+    if (!workspaceReady) {
+        return <EditorBootScreen status={restoreStatus} />;
+    }
+
+    if (!manifest) {
+        return (
+            <EditorStartScreen
+                loading={loading}
+                error={error}
+                sampleFilename={sampleProjectName}
+                libraryLoading={builtInPluginsLoading || savedPluginsLoading}
+                onImport={loadImportedArchive}
+                onLoadSample={loadAction}
+            />
+        );
+    }
+
     return (
         <main className="editor-shell">
-            <section className="editor-toolbar">
-                <div>
-                    <p className="eyebrow">Online profile workspace</p>
-                    <h1>
-                        {actionFileName ||
-                            currentPage?.Name ||
-                            (manifest as any)?.Name ||
-                            "Stream Deck editor"}
-                    </h1>
-                    <p className="subtle">
-                        Create layouts bigger than any physical Stream Deck.
-                    </p>
-                </div>
-                <div className="toolbar-actions">
-                    {manifest && (
-                        <button className="secondary-button" onClick={downloadAction}>
-                            Download edited action
-                        </button>
-                    )}
-                    <button
-                        className="primary-button"
-                        onClick={loadAction}
-                        disabled={loading}
-                    >
-                        {loading
-                            ? "Opening archive\u2026"
-                            : manifest
-                                ? "Reload action"
-                                : "Open action from public"}
-                    </button>
-                </div>
-            </section>
+            <EditorTopBar
+                projectName={projectName}
+                onImport={loadImportedArchive}
+                onStartFresh={() => setStartFreshDialogOpen(true)}
+                onExport={downloadAction}
+            />
             {error && <div className="error-banner">{error}</div>}
+            {startFreshDialogOpen && (
+                <StartFreshDialog
+                    projectName={projectName}
+                    onCancel={() => setStartFreshDialogOpen(false)}
+                    onConfirm={() => void startFresh()}
+                />
+            )}
             {deleteDialogOpen && selectedAction && (
                 <div className="delete-dialog-backdrop" role="presentation">
                     <section
@@ -713,15 +833,6 @@ export default function ProfileTester() {
                         Delete
                     </button>
                 </div>
-            )}
-            {!workspaceReady && (
-                <section className="workspace-restore-state" aria-live="polite">
-                    <span className="restore-spinner" aria-hidden="true" />
-                    <div>
-                        <h2>{restoreStatus || "Preparing editor…"}</h2>
-                        <p>Your saved action and edits stay in this browser.</p>
-                    </div>
-                </section>
             )}
             <div className="editor-layout">
                 <aside className="control-panel">
@@ -795,6 +906,8 @@ export default function ProfileTester() {
                         search={pluginSearch}
                         loading={pluginsLoading}
                         builtInsLoading={builtInPluginsLoading}
+                        savedPluginsLoading={savedPluginsLoading}
+                        saving={pluginsSaving}
                         onSearchChange={setPluginSearch}
                         onLoadFolder={loadPluginDirectory}
                         onDragAction={(action) => {
@@ -1349,8 +1462,8 @@ export default function ProfileTester() {
                         </p>
                     ) : (
                         <p className="canvas-note">
-                            Drag one action onto another to swap their locations. Download the
-                            edited action when you are ready.
+                            Drag one action onto another to swap their locations. Use Export
+                            profile/action when you are ready.
                         </p>
                     )}
                 </section>

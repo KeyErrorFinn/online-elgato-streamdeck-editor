@@ -4,6 +4,7 @@ const workspaceKey = "current";
 
 export type SavedWorkspace = {
     archive: ArrayBuffer;
+    sourceFilename?: string;
     editedPages: Record<string, any>;
     addedAssets: Record<string, Record<string, Uint8Array>>;
     activePageId?: string;
@@ -41,6 +42,18 @@ export async function saveWorkspace(workspace: SavedWorkspace) {
             .transaction(storeName, "readwrite")
             .objectStore(storeName)
             .put(workspace, workspaceKey);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+export async function clearSavedWorkspace() {
+    const database = await openDatabase();
+    return new Promise<void>((resolve, reject) => {
+        const request = database
+            .transaction(storeName, "readwrite")
+            .objectStore(storeName)
+            .delete(workspaceKey);
         request.onsuccess = () => resolve();
         request.onerror = () => reject(request.error);
     });

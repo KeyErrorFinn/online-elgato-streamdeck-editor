@@ -32,6 +32,7 @@ export type ImportedPlugin = {
 	name: string;
 	author?: string;
 	iconUrl?: string;
+	iconFile?: File;
 	actions: ImportedPluginAction[];
 };
 
@@ -226,6 +227,7 @@ export async function readInstalledPlugins(fileList: FileList | PluginSourceFile
 				iconUrl: pluginIcon
 					? URL.createObjectURL(pluginIcon)
 					: undefined,
+				iconFile: pluginIcon,
 				actions,
 			});
 			handledPluginFolders.add(pluginFolder.toLowerCase());
@@ -266,6 +268,7 @@ export async function readInstalledPlugins(fileList: FileList | PluginSourceFile
 		plugins.push({
 			uuid: pluginUuid,
 			name: pluginUuid,
+			iconFile,
 			actions: [
 				{
 					id: `${pluginUuid}:fallback-inspector`,

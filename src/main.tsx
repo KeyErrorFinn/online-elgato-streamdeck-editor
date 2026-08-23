@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import ProfileTester from "./components/ProfileTester";
 
 import "./main.css";
+import "./editorChrome.css";
 
 const App = () => {
     return <ProfileTester />;

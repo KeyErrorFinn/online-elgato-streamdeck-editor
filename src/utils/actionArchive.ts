@@ -41,8 +41,8 @@ export function downloadEditedAction(
 	link.href = url;
 	link.download =
 		sourceFilename?.replace(
-			/\.streamdeckaction$/i,
-			" (edited).streamDeckAction",
+			/(\.streamdeck(?:action|profile))$/i,
+			" (edited)$1",
 		) || "edited.streamDeckAction";
 	link.click();
 	URL.revokeObjectURL(url);

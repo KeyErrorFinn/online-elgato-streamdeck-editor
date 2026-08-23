@@ -7,8 +7,11 @@ function findRootManifestPath(
 	// Profiles/<random profile folder>/manifest.json
 	// Linked profile manifests live further below that folder and must not be
 	// mistaken for the root profile.
-	return Object.keys(entries).find((path) =>
-		/^Profiles\/[^/]+\/manifest\.json$/.test(path),
+	const paths = Object.keys(entries);
+	return (
+		paths.find((path) => /^Profiles\/[^/]+\/manifest\.json$/i.test(path)) ||
+		paths.find((path) => /^manifest\.json$/i.test(path)) ||
+		paths.find((path) => /^[^/]+\/manifest\.json$/i.test(path))
 	);
 }
 

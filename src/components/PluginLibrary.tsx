@@ -11,6 +11,8 @@ type PluginLibraryProps = {
     search: string;
     loading: boolean;
     builtInsLoading: boolean;
+    savedPluginsLoading: boolean;
+    saving: boolean;
     onSearchChange: (search: string) => void;
     onLoadFolder: (files: FileList | null) => void;
     onDragAction: (action: ImportedPluginAction | null) => void;
@@ -23,6 +25,8 @@ export default function PluginLibrary({
     search,
     loading,
     builtInsLoading,
+    savedPluginsLoading,
+    saving,
     onSearchChange,
     onLoadFolder,
     onDragAction,
@@ -65,6 +69,18 @@ export default function PluginLibrary({
                 <div className="built-in-plugin-loading" role="status">
                     <span className="restore-spinner" aria-hidden="true" />
                     Loading built-in Stream Deck actions...
+                </div>
+            )}
+            {savedPluginsLoading && (
+                <div className="built-in-plugin-loading" role="status">
+                    <span className="restore-spinner" aria-hidden="true" />
+                    Restoring saved plugins...
+                </div>
+            )}
+            {saving && (
+                <div className="built-in-plugin-loading" role="status">
+                    <span className="restore-spinner" aria-hidden="true" />
+                    Saving plugins for refresh...
                 </div>
             )}
             <input
