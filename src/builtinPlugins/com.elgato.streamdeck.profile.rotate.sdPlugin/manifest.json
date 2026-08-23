@@ -1,0 +1,22 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/switchProfile",
+      "Name": "Switch Profile", 
+      "States": [
+        {
+          "Image": "Images/btn_switchProfile"
+        }
+      ], 
+      "Tooltip": "Switch to another preconfigured key profile", 
+      "UUID": "com.elgato.streamdeck.profile.rotate",
+	  "SupportedInMultiActions": true
+    }
+  ], 
+  "Author": "Elgato", 
+  "Description": "Navigate to next/previous profile", 
+  "Name": "Switch Profile", 
+  "URL": "https://www.elgato.com/en/gaming/stream-deck", 
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

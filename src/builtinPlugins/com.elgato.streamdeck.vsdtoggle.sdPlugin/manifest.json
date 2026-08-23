@@ -1,0 +1,22 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/vsdtoggle",
+      "Name": "Toggle Virtual Stream Deck",
+      "States": [
+        {
+          "Image": "Images/btn_vsdtoggle"
+        }
+      ],
+      "Tooltip": "Show/Hide Virtual Stream Deck",
+      "UUID": "com.elgato.streamdeck.system.vsdtoggle",
+    "SupportedInMultiActions": true
+    }
+  ],
+  "Author": "Elgato",
+  "Description": "Toggle Virtual Stream Deck",
+  "Name": "Toggle Virtual Stream Deck",
+  "URL": "https://www.elgato.com/en/gaming/stream-deck",
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

@@ -1,0 +1,27 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/brightness",
+      "Name": "Brightness", 
+      "States": [
+        {
+          "Image": "Images/btn_keybrightness_max"
+        }
+      ], 
+      "Controllers": [ "Keypad", "Encoder" ],
+      "Encoder":
+      {
+        "StackColor": "#e0dd3d",
+        "layout": "$B1"
+      },
+      "Tooltip": "Adjust the brightness of your Stream Deck keys", 
+      "UUID": "com.elgato.streamdeck.system.keybrightness"
+    }
+  ], 
+  "Author": "Elgato", 
+  "Description": "Adjust the brightness of your Stream Deck keys", 
+  "Name": "Brightness", 
+  "URL": "https://www.elgato.com/en/gaming/stream-deck", 
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

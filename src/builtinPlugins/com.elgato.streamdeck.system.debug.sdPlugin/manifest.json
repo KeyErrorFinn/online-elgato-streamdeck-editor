@@ -1,0 +1,26 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/trigger_assert_white", 
+      "Name": "Assert", 
+      "States": [
+        {
+          "Image": "Images/btn_trigger_assert"
+        }
+      ], 
+      "Controllers": [ "Keypad", "Encoder" ],
+      "Encoder":
+      {
+        "layout": "layout.json"
+      },
+      "Tooltip": "Trap assertion", 
+      "UUID": "com.elgato.streamdeck.system.assert"
+    }
+  ], 
+  "Author": "Elgato", 
+  "Description": "Trap assertion", 
+  "Name": "Trap assertion", 
+  "URL": "https://www.elgato.com/en/gaming/stream-deck", 
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

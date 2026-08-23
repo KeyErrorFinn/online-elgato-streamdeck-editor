@@ -1,0 +1,22 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/digitalTime",
+      "Name": "Digital Time", 
+      "States": [
+        {
+          "Image": "Images/btn_digitalTime"
+        }
+      ], 
+      "Controllers": [ "Neo" ],
+      "Tooltip": "Display a custom digital clock", 
+      "UUID": "com.elgato.streamdeck.system.digitaltime"
+    }
+  ], 
+  "Author": "Elgato", 
+  "Description": "Display a custom digital clock", 
+  "Name": "Digital Time", 
+  "URL": "https://www.elgato.com/en/gaming/stream-deck", 
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

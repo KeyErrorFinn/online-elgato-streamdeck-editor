@@ -1,0 +1,22 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/timer",
+      "Name": "Timer", 
+      "States": [
+        {
+          "Image": "Images/btn_timer"
+        }
+      ], 
+      "Tooltip": "Timer for Stream Deck (acoustically and visually)", 
+      "UUID": "com.elgato.streamdeck.system.timer",
+	  "SupportedInMultiActions": false
+    }
+  ], 
+  "Author": "Elgato", 
+  "Description": "Timer", 
+  "Name": "Timer", 
+  "URL": "https://www.elgato.com/en/gaming/stream-deck", 
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

@@ -18,6 +18,7 @@ import {
     saveWorkspace,
 } from "../utils/workspacePersistence";
 import PluginLibrary from "./PluginLibrary";
+import { readBuiltInPlugins } from "../utils/builtInPlugins";
 import {
     devices,
     getGridBounds,
@@ -58,6 +59,8 @@ export default function ProfileTester() {
     const [editedPages, setEditedPages] = useState<Record<string, any>>({});
     const [draggedKey, setDraggedKey] = useState<string | null>(null);
     const [plugins, setPlugins] = useState<ImportedPlugin[]>([]);
+    const [builtInPlugins, setBuiltInPlugins] = useState<ImportedPlugin[]>([]);
+    const [builtInPluginsLoading, setBuiltInPluginsLoading] = useState(true);
     const [pluginSearch, setPluginSearch] = useState("");
     const [pluginsLoading, setPluginsLoading] = useState(false);
     const [draggedPluginAction, setDraggedPluginAction] =
@@ -103,6 +106,8 @@ export default function ProfileTester() {
         columns: Math.max(selectedDevice.columns, imported.columns),
     };
     const selectedAction = selectedKey ? actions[selectedKey] : undefined;
+    const selectedIsSystemTextAction =
+        selectedAction?.UUID === "com.elgato.streamdeck.system.text";
     const actionKeys = Object.keys(actions);
     const isActionLandingPage =
         currentPage?.$uuid === rootPage?.$uuid && actionKeys.length === 1;
@@ -113,8 +118,24 @@ export default function ProfileTester() {
               const row = Math.floor(index / visual.columns);
               return `${column},${row}`;
           });
+    const availablePlugins = [...builtInPlugins, ...plugins];
+    // Elgato's built-ins are separate on disk, but they form one library in
+    // this editor. Keep the original actions intact so their plugin metadata
+    // still resolves when a button is selected.
+    const libraryPlugins: ImportedPlugin[] = [
+        ...(builtInPlugins.length
+            ? [
+                  {
+                      uuid: "streamdeck-editor-built-ins",
+                      name: "Built-in",
+                      actions: builtInPlugins.flatMap((plugin) => plugin.actions),
+                  },
+              ]
+            : []),
+        ...plugins,
+    ];
     const normalizedPluginSearch = pluginSearch.trim().toLowerCase();
-    const visiblePlugins = plugins
+    const visiblePlugins = libraryPlugins
         .map((plugin) => ({
             ...plugin,
             actions: plugin.actions.filter(
@@ -129,7 +150,7 @@ export default function ProfileTester() {
         .filter((plugin) => plugin.actions.length > 0);
     const pluginActionFor = (action: any) =>
         action?.UUID || action?.Plugin?.UUID
-            ? plugins.flatMap((plugin) => plugin.actions).find(
+            ? availablePlugins.flatMap((plugin) => plugin.actions).find(
                   (candidate) =>
                       String(candidate.uuid).toLowerCase() ===
                           String(action.UUID).toLowerCase() ||
@@ -160,11 +181,13 @@ export default function ProfileTester() {
     const selectedPluginNotImported =
         !selectedIsParent &&
         !selectedIsFolder &&
+        !selectedIsSystemTextAction &&
         !!selectedAction?.Plugin?.UUID &&
         !selectedPluginAction;
     const selectedPluginSettingsUnsupported =
         !selectedIsParent &&
         !selectedIsFolder &&
+        !selectedIsSystemTextAction &&
         !!selectedPluginAction &&
         !selectedPluginAction.propertyInspector;
     const selectedPluginPartiallySupported =
@@ -257,6 +280,22 @@ export default function ProfileTester() {
         return () => {
             cancelled = true;
         };
+    }, []);
+
+    useEffect(() => {
+        // Yield once so React can paint the editor before the bundled library is
+        // read. Built-ins are intentionally a background enhancement.
+        const timer = window.setTimeout(() => {
+            void readBuiltInPlugins()
+                .then(setBuiltInPlugins)
+                .catch(() => {
+                    // Built-ins are optional; user-imported plugins remain available.
+                })
+                .finally(() => {
+                    setBuiltInPluginsLoading(false);
+                });
+        }, 0);
+        return () => window.clearTimeout(timer);
     }, []);
 
     useEffect(() => {
@@ -454,6 +493,7 @@ export default function ProfileTester() {
                 return;
             }
             if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c" && selectedAction) {
+                if (window.getSelection()?.toString()) return;
                 event.preventDefault();
                 copyAction(selectedAction);
                 return;
@@ -562,7 +602,9 @@ export default function ProfileTester() {
     };
 
     const selectedPluginLabel =
-        selectedPluginAction?.pluginName || selectedAction?.Plugin?.Name || "Stream Deck";
+        selectedIsSystemTextAction
+            ? "System"
+            : (selectedPluginAction?.pluginName || selectedAction?.Plugin?.Name || "Stream Deck");
     const selectedActionLabel =
         selectedAction?.Name || selectedPluginAction?.name || "Action";
 
@@ -677,7 +719,7 @@ export default function ProfileTester() {
                     <span className="restore-spinner" aria-hidden="true" />
                     <div>
                         <h2>{restoreStatus || "Preparing editor…"}</h2>
-                        <p>Your saved action, edits, and installed plugins stay in this browser.</p>
+                        <p>Your saved action and edits stay in this browser.</p>
                     </div>
                 </section>
             )}
@@ -748,10 +790,11 @@ export default function ProfileTester() {
                         </div>
                     </section>
                     <PluginLibrary
-                        plugins={plugins}
+                        plugins={libraryPlugins}
                         visiblePlugins={visiblePlugins}
                         search={pluginSearch}
                         loading={pluginsLoading}
+                        builtInsLoading={builtInPluginsLoading}
                         onSearchChange={setPluginSearch}
                         onLoadFolder={loadPluginDirectory}
                         onDragAction={(action) => {
@@ -953,7 +996,7 @@ export default function ProfileTester() {
                                             <div>
                                                 <h3>
                                                     <strong>
-                                                        {selectedAction.Plugin?.Name || "Stream Deck"}
+                                                        {selectedPluginLabel}
                                                     </strong>
                                                     {": "}
                                                     {selectedAction.Name || "Unnamed action"}
@@ -987,7 +1030,8 @@ export default function ProfileTester() {
                                                 <label className="button-editor-field title-field">
                                                     <span>Title:</span>
                                                     <span className="title-input-control">
-                                                        <input
+                                                        <textarea
+                                                            rows={1}
                                                             value={
                                                                 selectedAction.States?.[
                                                                     selectedAction.State ?? 0
@@ -1206,6 +1250,56 @@ export default function ProfileTester() {
                                                             })
                                                         }
                                                     />
+                                                </section>
+                                            )}
+                                            {selectedIsSystemTextAction && (
+                                                <section className="plugin-settings system-text-settings">
+                                                    <label className="built-in-form-row built-in-textarea-row">
+                                                        <span>Text:</span>
+                                                        <span className="built-in-textarea-control">
+                                                            <textarea
+                                                                value={selectedAction.Settings?.pastedText || ""}
+                                                                onChange={(event) =>
+                                                                    updateSelectedAction((action) => {
+                                                                        action.Settings ||= {};
+                                                                        action.Settings.pastedText = event.target.value;
+                                                                    })
+                                                                }
+                                                            />
+                                                            <small>
+                                                                {String(selectedAction.Settings?.pastedText || "").length} characters
+                                                            </small>
+                                                        </span>
+                                                    </label>
+                                                    <label className="button-editor-checkbox built-in-checkbox-row">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={Boolean(selectedAction.Settings?.isSendingEnter)}
+                                                            onChange={(event) =>
+                                                                updateSelectedAction((action) => {
+                                                                    action.Settings ||= {};
+                                                                    action.Settings.isSendingEnter = event.target.checked;
+                                                                })
+                                                            }
+                                                        />
+                                                        Press Enter after message
+                                                    </label>
+                                                    <label className="built-in-form-row">
+                                                        <span>Text Mode:</span>
+                                                        <select
+                                                            value={selectedAction.Settings?.isTypingMode ? "typing" : "clipboard"}
+                                                            onChange={(event) =>
+                                                                updateSelectedAction((action) => {
+                                                                    action.Settings ||= {};
+                                                                    action.Settings.isTypingMode =
+                                                                        event.target.value === "typing";
+                                                                })
+                                                            }
+                                                        >
+                                                            <option value="clipboard">Paste from Clipboard</option>
+                                                            <option value="typing">Simulate typing</option>
+                                                        </select>
+                                                    </label>
                                                 </section>
                                             )}
                                             {selectedPluginNotImported && (

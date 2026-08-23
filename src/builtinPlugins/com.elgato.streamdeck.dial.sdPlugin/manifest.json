@@ -1,0 +1,28 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/dialStack",
+      "Name": "Dial Stack",
+      "States": [
+        {
+          "Image": "Images/btn_dialStack"
+        }
+      ], 
+      "Tooltip": "Combine multiple dials into a stack",
+      "UUID": "com.elgato.streamdeck.dial.stack",
+      "Controllers": ["Encoder"],
+      "Encoder": {
+        "layout": "$X2",
+        "TriggerDescription": {
+          "Push": "Switch to next action"
+        }
+      }
+    }
+  ], 
+  "Author": "Elgato", 
+  "Description": "Dials Actions",
+  "Name": "Dials",
+  "URL": "https://www.elgato.com/en/gaming/stream-deck", 
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

@@ -1,0 +1,21 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/text",
+      "Name": "Text", 
+      "States": [
+        {
+          "Image": "Images/btn_text"
+        }
+      ], 
+      "Tooltip": "Type or paste a precomposed text", 
+      "UUID": "com.elgato.streamdeck.system.text"
+    }
+  ], 
+  "Author": "Elgato", 
+  "Description": "Type or paste a precomposed text", 
+  "Name": "Text", 
+  "URL": "https://www.elgato.com/en/gaming/stream-deck", 
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

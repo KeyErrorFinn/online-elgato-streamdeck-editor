@@ -1,0 +1,32 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/playAudio",
+      "Name": "Play Audio", 
+      "States": [
+        {
+          "Image": "Images/btn_playAudio"
+        }
+      ], 
+      "Tooltip": "Play a sound bite, audio effect or music clip", 
+      "UUID": "com.elgato.streamdeck.soundboard.playaudio"
+    },
+	{
+      "Icon": "Images/stopAudio",
+      "Name": "Stop Audio", 
+      "States": [
+        {
+          "Image": "Images/btn_stopAudio"
+        }
+      ], 
+      "Tooltip": "Stop all Soundboard playback", 
+      "UUID": "com.elgato.streamdeck.soundboard.stopaudioplay"
+    }
+  ], 
+  "Author": "Elgato", 
+  "Description": "Soundboard", 
+  "Name": "Soundboard", 
+  "URL": "https://www.elgato.com/en/gaming/stream-deck", 
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

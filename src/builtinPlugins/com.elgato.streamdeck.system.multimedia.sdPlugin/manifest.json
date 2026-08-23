@@ -1,0 +1,26 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/multimedia",
+      "Name": "Multimedia", 
+      "States": [
+        {
+          "Image": "Images/btn_media_play_pause"
+        }
+      ], 
+      "Controllers": [ "Keypad", "Encoder" ],
+      "Encoder":
+      {
+        "StackColor": "#4AE03D"
+      },
+      "Tooltip": "Control your media playback", 
+      "UUID": "com.elgato.streamdeck.system.multimedia"
+    }
+  ], 
+  "Author": "Elgato", 
+  "Description": "Control your media playback", 
+  "Name": "Multimedia", 
+  "URL": "https://www.elgato.com/en/gaming/stream-deck", 
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

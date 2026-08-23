@@ -1,0 +1,26 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/trigger_wheel_white", 
+      "Name": "Mouse Wheel", 
+      "States": [
+        {
+          "Image": "Images/btn_custom_trigger_wheel"
+        }
+      ],
+      "Controllers": [ "Encoder" ],
+      "Encoder":
+      {
+        "StackColor": "#a53de0"
+      },
+      "Tooltip": "Activate a wheel scroll", 
+      "UUID": "com.elgato.streamdeck.system.mouse-wheel"
+    }
+  ], 
+  "Author": "Elgato", 
+  "Description": "Activate a mouse command", 
+  "Name": "Activate a Mouse Command", 
+  "URL": "https://www.elgato.com/en/gaming/stream-deck", 
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

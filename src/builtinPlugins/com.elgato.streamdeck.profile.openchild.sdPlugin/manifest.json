@@ -1,0 +1,23 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/createFolder",
+      "Name": "Create Folder",
+      "States": [
+        {
+          "Image": "Images/btn_folder"
+        }
+      ],
+      "Tooltip": "Create a folder",
+      "UUID": "com.elgato.streamdeck.profile.openchild",
+    "SupportedInMultiActions": false,
+    "SupportedInKeyLogicActions": false
+    }
+  ],
+  "Author": "Elgato",
+  "Description": "Create Folder",
+  "Name": "Create Folder",
+  "URL": "https://www.elgato.com/en/gaming/stream-deck",
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

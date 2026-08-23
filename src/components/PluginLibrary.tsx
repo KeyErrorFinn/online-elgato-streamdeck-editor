@@ -10,6 +10,7 @@ type PluginLibraryProps = {
     visiblePlugins: ImportedPlugin[];
     search: string;
     loading: boolean;
+    builtInsLoading: boolean;
     onSearchChange: (search: string) => void;
     onLoadFolder: (files: FileList | null) => void;
     onDragAction: (action: ImportedPluginAction | null) => void;
@@ -21,6 +22,7 @@ export default function PluginLibrary({
     visiblePlugins,
     search,
     loading,
+    builtInsLoading,
     onSearchChange,
     onLoadFolder,
     onDragAction,
@@ -59,6 +61,12 @@ export default function PluginLibrary({
                 Select your Stream Deck <code>Plugins</code> folder. Files are read
                 locally and are not uploaded.
             </p>
+            {builtInsLoading && (
+                <div className="built-in-plugin-loading" role="status">
+                    <span className="restore-spinner" aria-hidden="true" />
+                    Loading built-in Stream Deck actions...
+                </div>
+            )}
             <input
                 ref={(input) => {
                     folderInput.current = input;

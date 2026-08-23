@@ -1,0 +1,21 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/close",
+      "Name": "Close", 
+      "States": [
+        {
+          "Image": "Images/btn_close"
+        }
+      ], 
+      "Tooltip": "Close all instances of an app", 
+      "UUID": "com.elgato.streamdeck.system.close"
+    }
+  ], 
+  "Author": "Elgato", 
+  "Description": "Close all instances of an app", 
+  "Name": "Close", 
+  "URL": "https://www.elgato.com/en/gaming/stream-deck", 
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

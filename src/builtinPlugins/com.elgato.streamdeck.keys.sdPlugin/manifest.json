@@ -1,0 +1,60 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/keyStack",
+      "Name": "Action Wheel",
+      "States": [
+        {
+          "Image": "Images/btn_keyStack"
+        }
+      ],
+      "Tooltip": "Assign multiple actions to a dial, then rotate to cycle through them",
+      "UUID": "com.elgato.streamdeck.keys.stack",
+      "Controllers": [
+        "Encoder"
+      ],
+      "Encoder": {
+        "layout": "$X2",
+        "TriggerDescription": {
+          "Rotate": "Navigate actions",
+          "Push": "Execute action"
+        }
+      }
+    },
+    {
+      "Icon": "Images/keyAdaptor",
+      "Name": "Action Trigger",
+      "States": [
+        {
+          "Image": "Images/btn_keyAdaptor"
+        }
+      ],
+      "Tooltip": "Trigger actions with a dial turn",
+      "UUID": "com.elgato.streamdeck.keys.adaptor",
+      "Controllers": ["Encoder"],
+      "Encoder": {
+        "layout": "$X2"
+      }
+    },
+    {
+      "Icon": "Images/keyLogic",
+      "Name": "Key Logic",
+      "States": [
+        {
+          "Image": "Images/btn_keyLogic"
+        }
+      ],
+      "Tooltip": "Trigger actions with key clicks",
+      "UUID": "com.elgato.streamdeck.keys.logic",
+      "Controllers": ["Keypad"],
+      "SupportedInMultiActions": false,
+      "SupportedInKeyLogicActions": false
+    }
+  ],
+  "Author": "Elgato",
+  "Description": "Key actions on dials",
+  "Name": "Keys",
+  "URL": "https://www.elgato.com/en/gaming/stream-deck",
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

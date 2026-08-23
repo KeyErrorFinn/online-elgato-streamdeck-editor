@@ -1,0 +1,58 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/previousPage",
+      "Name": "Previous Page",
+      "States": [
+        {
+          "Image": "Images/btn_previousPage"
+        }
+      ],
+      "Tooltip": "Switch to previous Page",
+      "UUID": "com.elgato.streamdeck.page.previous",
+      "SupportedInMultiActions": false
+    },
+    {
+      "Icon": "Images/nextPage",
+      "Name": "Next Page",
+      "States": [
+        {
+          "Image": "Images/btn_nextPage"
+        }
+      ],
+      "Tooltip": "Switch to next Page",
+      "UUID": "com.elgato.streamdeck.page.next",
+      "SupportedInMultiActions": false
+    },
+    {
+      "Icon": "Images/goToPage",
+      "Name": "Go to Page",
+      "States": [
+        {
+          "Image": "Images/btn_goToPage"
+        }
+      ],
+      "Tooltip": "Switch to specified page number",
+      "UUID": "com.elgato.streamdeck.page.goto",
+      "SupportedInMultiActions": false
+    },
+    {
+      "Icon": "Images/pageIndicator",
+      "Name": "Page Indicator",
+      "States": [
+        {
+          "Image": "Images/btn_pageIndicator"
+        }
+      ],
+      "Tooltip": "Displays the page number of the current profile",
+      "UUID": "com.elgato.streamdeck.page.indicator",
+      "SupportedInMultiActions": false
+    }
+  ],
+  "Author": "Elgato",
+  "Description": "Pages navigation",
+  "Name": "Pages",
+  "URL": "https://www.elgato.com/en/gaming/stream-deck",
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

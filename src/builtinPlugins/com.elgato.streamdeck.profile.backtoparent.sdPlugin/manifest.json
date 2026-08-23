@@ -1,0 +1,21 @@
+{
+  "Actions": [
+    {
+      "Name": "Parent Folder",
+      "States": [
+        {
+          "Image": "Images/btn_backToParent"
+        }
+      ],
+      "Tooltip": "Open Parent Folder",
+      "UUID": "com.elgato.streamdeck.profile.backtoparent",
+      "SupportedInMultiActions": false
+    }
+  ],
+  "Author": "Elgato",
+  "Description": "Open Parent Folder",
+  "Name": "Open Parent Folder",
+  "URL": "https://www.elgato.com/en/gaming/stream-deck",
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

@@ -1,0 +1,21 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/website",
+      "Name": "Website", 
+      "States": [
+        {
+          "Image": "Images/btn_website"
+        }
+      ], 
+      "Tooltip": "Open URL", 
+      "UUID": "com.elgato.streamdeck.system.website"
+    }
+  ], 
+  "Author": "Elgato", 
+  "Description": "Open a Website", 
+  "Name": "Website", 
+  "URL": "https://www.elgato.com/en/gaming/stream-deck", 
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

@@ -1,0 +1,26 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/trigger_actionbar_white", 
+      "Name": "Action Bar", 
+      "States": [
+        {
+          "Image": "Images/btn_trigger_actionbar_on",
+		  "Name": "Show"
+        },
+        {
+          "Image": "Images/btn_trigger_actionbar_off",
+		  "Name": "Hide"
+        }
+      ], 
+      "Tooltip": "Show/hide Action Bar", 
+      "UUID": "com.elgato.streamdeck.system.actionbar"
+    }
+  ], 
+  "Author": "Elgato", 
+  "Description": "Show/hide Action Bar", 
+  "Name": "Show/hide Action Bar", 
+  "URL": "https://www.elgato.com/en/gaming/stream-deck", 
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

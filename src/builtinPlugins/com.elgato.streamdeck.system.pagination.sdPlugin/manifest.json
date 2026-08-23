@@ -1,0 +1,22 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/pagination",
+      "Name": "Page Indicator", 
+      "States": [
+        {
+          "Image": "Images/btn_pagination"
+        }
+      ], 
+      "Controllers": [ "Neo" ],
+      "Tooltip": "Display your current page selection", 
+      "UUID": "com.elgato.streamdeck.system.pagination"
+    }
+  ], 
+  "Author": "Elgato", 
+  "Description": "Display your current page selection", 
+  "Name": "Page Indicator", 
+  "URL": "https://www.elgato.com/en/gaming/stream-deck", 
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

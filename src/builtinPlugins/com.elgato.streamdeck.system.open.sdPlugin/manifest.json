@@ -1,0 +1,21 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/open",
+      "Name": "Open", 
+      "States": [
+        {
+          "Image": "Images/btn_open"
+        }
+      ], 
+      "Tooltip": "Open an app, file or folder", 
+      "UUID": "com.elgato.streamdeck.system.open"
+    }
+  ], 
+  "Author": "Elgato", 
+  "Description": "Open an app, file or folder", 
+  "Name": "Open", 
+  "URL": "https://www.elgato.com/en/gaming/stream-deck", 
+  "PrivateAPI": true,
+  "Version": "1.0"
+}

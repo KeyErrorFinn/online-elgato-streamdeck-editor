@@ -1,0 +1,21 @@
+{
+  "Actions": [
+    {
+      "Icon": "Images/sleep",
+      "Name": "Sleep", 
+      "States": [
+        {
+          "Image": "Images/btn_sleep"
+        }
+      ], 
+      "Tooltip": "Put your Stream Deck to sleep", 
+      "UUID": "com.elgato.streamdeck.system.sleep"
+    }
+  ], 
+  "Author": "Elgato", 
+  "Description": "Sleep immediately", 
+  "Name": "Sleep", 
+  "URL": "https://www.elgato.com/en/gaming/stream-deck", 
+  "PrivateAPI": true,
+  "Version": "1.0"
+}
