@@ -1,13 +1,15 @@
 import { defineConfig } from "vite";
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 const publicDirectory = resolve(import.meta.dirname, "public");
-const streamDeckActionFile = readdirSync(publicDirectory, { withFileTypes: true })
-	.find((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".streamdeckaction"))
-	?.name;
+const streamDeckActionFile = existsSync(publicDirectory)
+	? readdirSync(publicDirectory, { withFileTypes: true }).find(
+			(entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".streamdeckaction"),
+		)?.name
+	: undefined;
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -22,5 +24,5 @@ export default defineConfig({
 		}),
 		tailwindcss(),
 	],
-    base: '/online-elgato-streamdeck-editor/',
+base: "/online-elgato-streamdeck-editor/",
 });
