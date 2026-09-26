@@ -66,7 +66,13 @@ The build compiles TypeScript and emits the static site to `dist/`. The workflow
 
 ## Live preview
 
-![Live online Stream Deck editor](docs/screenshot.png)
+Start screen:
+
+![Stream Deck editor start screen](docs/screenshot.png)
+
+Editor with the bundled profile open:
+
+![Stream Deck profile open in the editor](docs/editor-view.jpg)
 
 [Open the deployed editor](https://git.finnley.co.uk/online-elgato-streamdeck-editor/)
 
