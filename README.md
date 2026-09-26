@@ -71,7 +71,7 @@ This project began as a way to inspect Stream Deck exports without repeatedly op
 
 The editor keeps that work in the browser. Archive decoding is separated from the React interface, while `ProfileTester.tsx` coordinates navigation, editing, local persistence, and export. This makes static hosting possible and avoids uploading a user's profiles or images to a server.
 
-Validation currently consists of TypeScript compilation, ESLint, and a production Vite build. The most useful next improvements would be automated fixture tests for malformed archives and round-trip tests that open and export representative profiles without losing data.
+Continuous integration verifies TypeScript compilation and a production Vite build. ESLint is available locally and currently identifies older typing and hook cleanup work. The most useful next improvements would be automated fixture tests for malformed archives and round-trip tests that open and export representative profiles without losing data.
 
 <!-- documentation-extras -->
 
