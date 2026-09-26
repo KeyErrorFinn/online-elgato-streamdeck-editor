@@ -76,6 +76,10 @@ Editor with the bundled profile open:
 
 ![Stream Deck profile open in the editor](docs/editor-view.jpg)
 
+Inside a folder, showing the full 5 column by 3 row grid:
+
+![Stream Deck folder with a full 5 by 3 grid](docs/folder-grid.jpg)
+
 [Open the deployed editor](https://git.finnley.co.uk/online-elgato-streamdeck-editor/)
 
 ## Project flow
