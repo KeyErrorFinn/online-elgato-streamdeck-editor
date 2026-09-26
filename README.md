@@ -64,6 +64,14 @@ The build compiles TypeScript and emits the static site to `dist/`. The workflow
 - Work is stored locally in the browser until an edited archive is downloaded. Keep backups of original exports.
 - This is an independent project and is not affiliated with Elgato.
 
+## Engineering notes
+
+This project began as a way to inspect Stream Deck exports without repeatedly opening the desktop application. The main technical challenge is that a profile is not one flat file: archives can contain linked pages, nested folders, multiple button states, plugin metadata, images, and property inspectors.
+
+The editor keeps that work in the browser. Archive decoding is separated from the React interface, while `ProfileTester.tsx` coordinates navigation, editing, local persistence, and export. This makes static hosting possible and avoids uploading a user's profiles or images to a server.
+
+Validation currently consists of TypeScript compilation, ESLint, and a production Vite build. The most useful next improvements would be automated fixture tests for malformed archives and round-trip tests that open and export representative profiles without losing data.
+
 <!-- documentation-extras -->
 
 ## Live preview
