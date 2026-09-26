@@ -1,6 +1,7 @@
 # Online Elgato Stream Deck Editor
 
 <p align="center">
+  <a href="https://github.com/KeyErrorFinn/online-elgato-streamdeck-editor/actions/workflows/ci.yml"><img alt="Continuous integration" src="https://github.com/KeyErrorFinn/online-elgato-streamdeck-editor/actions/workflows/ci.yml/badge.svg" /></a>
   <a href="https://github.com/KeyErrorFinn/online-elgato-streamdeck-editor/commits/main"><img alt="GitHub last commit" src="https://img.shields.io/github/last-commit/KeyErrorFinn/online-elgato-streamdeck-editor" /></a>
   <a href="https://github.com/KeyErrorFinn/online-elgato-streamdeck-editor/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/KeyErrorFinn/online-elgato-streamdeck-editor" /></a>
 </p>
