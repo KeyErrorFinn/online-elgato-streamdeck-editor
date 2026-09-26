@@ -2,6 +2,16 @@
 
 [![Last commit](https://img.shields.io/github/last-commit/KeyErrorFinn/online-elgato-streamdeck-editor)](https://github.com/KeyErrorFinn/online-elgato-streamdeck-editor/commits/main) [![Issues](https://img.shields.io/github/issues/KeyErrorFinn/online-elgato-streamdeck-editor)](https://github.com/KeyErrorFinn/online-elgato-streamdeck-editor/issues)
 
+<p align="center">
+  <img alt="React" src="https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB" />
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=fff" />
+  <img alt="Vite" src="https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=fff" />
+  <img alt="Tailwind CSS" src="https://img.shields.io/badge/Tailwind%20CSS-06B6D4?logo=tailwindcss&logoColor=fff" />
+  <img alt="npm" src="https://img.shields.io/badge/npm-CB3837?logo=npm&logoColor=fff" />
+  <img alt="GitHub Pages" src="https://img.shields.io/badge/GitHub%20Pages-222222?logo=githubpages&logoColor=fff" />
+  <img alt="GitHub Actions" src="https://img.shields.io/badge/GitHub%20Actions-2088FF?logo=githubactions&logoColor=fff" />
+</p>
+
 A browser-based editor for inspecting and modifying exported Elgato Stream Deck profiles and actions without requiring the Stream Deck desktop editor for every change.
 
 ## Features
